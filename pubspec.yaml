@@ -1,0 +1,27 @@
+name: kaizen_for_workout
+description: iPhone native workout tracking and analytics app.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  isar: ^3.1.0+1
+  isar_flutter_libs: ^3.1.0+1
+  flutter_riverpod: ^2.5.1
+  fl_chart: ^0.68.0
+  path_provider: ^2.1.3
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  isar_generator: ^3.1.0+1
+  build_runner: ^2.4.9
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

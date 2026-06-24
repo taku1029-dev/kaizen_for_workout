@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 同一ブランチへの連続プッシュで古いジョブをキャンセル
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ----------------------------------------------------------------
+  # Job 1: 静的解析 + ユニットテスト (Linux runner で高速・低コスト)
+  # ----------------------------------------------------------------
+  analyze-and-test:
+    name: Analyze & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate Isar code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Test
+        run: flutter test
+
+  # ----------------------------------------------------------------
+  # Job 2: iOS ビルド検証 (macOS runner 必須)
+  # 前提: ios/ ディレクトリが `flutter create` で生成されリポジトリに含まれていること
+  # ----------------------------------------------------------------
+  build-ios:
+    name: Build iOS
+    runs-on: macos-latest
+    needs: analyze-and-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate Isar code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build iOS (no code sign)
+        run: flutter build ios --release --no-codesign
