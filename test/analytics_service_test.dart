@@ -6,7 +6,7 @@ import 'package:kaizen_for_workout/models/workout_session.dart';
 import 'package:kaizen_for_workout/services/analytics_service.dart';
 
 void main() {
-  final analytics = const AnalyticsService();
+  const analytics = AnalyticsService();
 
   // MARK: - Helpers
 

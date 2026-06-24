@@ -90,7 +90,7 @@ class _WeeklyProgressChartState extends ConsumerState<WeeklyProgressChart> {
                                 dotData: const FlDotData(show: true),
                                 belowBarData: BarAreaData(
                                   show: true,
-                                  color: colorScheme.primary.withOpacity(0.12),
+                                  color: colorScheme.primary.withValues(alpha: 0.12),
                                 ),
                               ),
                             ],
@@ -123,7 +123,7 @@ class _WeeklyProgressChartState extends ConsumerState<WeeklyProgressChart> {
                             ),
                             gridData: FlGridData(
                               drawVerticalLine: false,
-                              getDrawingHorizontalLine: (_) => FlLine(color: Colors.grey.withOpacity(0.2)),
+                              getDrawingHorizontalLine: (_) => FlLine(color: Colors.grey.withValues(alpha: 0.2)),
                             ),
                             borderData: FlBorderData(show: false),
                           ),

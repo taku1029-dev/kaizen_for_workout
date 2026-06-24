@@ -127,7 +127,7 @@ class _Form extends StatelessWidget {
         children: [
           DropdownButtonFormField<Exercise>(
             decoration: const InputDecoration(labelText: 'Exercise', border: OutlineInputBorder()),
-            value: selectedExercise,
+            initialValue: selectedExercise,
             items: exercises.map((e) {
               return DropdownMenuItem(value: e, child: Text(e.name));
             }).toList(),

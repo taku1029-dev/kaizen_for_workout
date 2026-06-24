@@ -82,7 +82,7 @@ class VolumeChart extends StatelessWidget {
                         gridData: FlGridData(
                           drawVerticalLine: false,
                           horizontalInterval: 500,
-                          getDrawingHorizontalLine: (_) => FlLine(color: Colors.grey.withOpacity(0.2)),
+                          getDrawingHorizontalLine: (_) => FlLine(color: Colors.grey.withValues(alpha: 0.2)),
                         ),
                         borderData: FlBorderData(show: false),
                       ),

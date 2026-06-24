@@ -114,7 +114,7 @@ class ExerciseManagerScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<MuscleGroup>(
-                value: selectedGroup,
+                initialValue: selectedGroup,
                 decoration: const InputDecoration(
                   labelText: 'Muscle Group',
                   border: OutlineInputBorder(),
