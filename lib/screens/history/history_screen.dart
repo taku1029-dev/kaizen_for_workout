@@ -63,7 +63,9 @@ class HistoryScreen extends ConsumerWidget {
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => SessionDetailScreen(session: session)),
+                    MaterialPageRoute(
+                      builder: (_) => SessionDetailScreen(sessionId: session.id),
+                    ),
                   ),
                 ),
               );

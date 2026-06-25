@@ -210,9 +210,26 @@ class _SetTile extends StatelessWidget {
       confirmDismiss: (direction) async {
         if (direction == DismissDirection.startToEnd) {
           onEdit();
-          return false; // タイルは消さない
+          return false;
         }
-        return true; // 左スワイプは削除確定
+        return showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Delete set?'),
+            content: Text('${set.exerciseName}  Set ${set.setNumber}'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        );
       },
       onDismissed: (_) => onDelete(),
       child: ListTile(
