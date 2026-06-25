@@ -66,9 +66,37 @@ class DatabaseService {
 
   static Future<void> deleteSet(WorkoutSession session, int index) async {
     session.sets.removeAt(index);
+    // Renumber each exercise's sets sequentially after deletion
+    final counters = <int, int>{};
+    for (final s in session.sets) {
+      counters[s.exerciseId] = (counters[s.exerciseId] ?? 0) + 1;
+      s.setNumber = counters[s.exerciseId]!;
+    }
     await _db.writeTxn(() async {
       await _db.workoutSessions.put(session);
     });
+  }
+
+  static Future<void> updateSet(
+    WorkoutSession session,
+    int index,
+    EmbeddedSet updated,
+  ) async {
+    session.sets[index] = updated;
+    await _db.writeTxn(() async {
+      await _db.workoutSessions.put(session);
+    });
+  }
+
+  /// 指定種目の直近セットを返す（前回値引き継ぎ用）
+  static Future<EmbeddedSet?> lastSetFor(int exerciseId) async {
+    final sessions = await _db.workoutSessions.where().findAll();
+    sessions.sort((a, b) => b.date.compareTo(a.date));
+    for (final session in sessions) {
+      final matches = session.sets.where((s) => s.exerciseId == exerciseId);
+      if (matches.isNotEmpty) return matches.last;
+    }
+    return null;
   }
 
   static Future<void> deleteSession(WorkoutSession session) async {

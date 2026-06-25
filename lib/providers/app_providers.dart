@@ -22,11 +22,14 @@ final sessionsProvider = StreamProvider<List<WorkoutSession>>((ref) {
       .asyncMap((_) => isar.workoutSessions.where().sortByDateDesc().findAll());
 });
 
-// MARK: - Today's session
+// MARK: - Today's session (reactive: rebuilds when any session changes in Isar)
 
-final todaySessionProvider = FutureProvider<WorkoutSession>(
-  (_) => DatabaseService.getOrCreateTodaySession(),
-);
+final todaySessionProvider = StreamProvider<WorkoutSession>((ref) {
+  final isar = ref.watch(isarProvider);
+  return isar.workoutSessions
+      .watchLazy(fireImmediately: true)
+      .asyncMap((_) => DatabaseService.getOrCreateTodaySession());
+});
 
 // MARK: - Exercises (active only, reactive stream)
 

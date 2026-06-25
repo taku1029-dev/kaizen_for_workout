@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../models/embedded_set.dart';
 import '../../models/muscle_group.dart';
@@ -16,7 +17,9 @@ class TodayScreen extends ConsumerWidget {
     final sessionAsync = ref.watch(todaySessionProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Today')),
+      appBar: AppBar(
+        title: Text(DateFormat('EEE, MMM d').format(DateTime.now())),
+      ),
       body: sessionAsync.when(
         data: (session) => _SessionBody(session: session),
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -24,7 +27,7 @@ class TodayScreen extends ConsumerWidget {
       ),
       floatingActionButton: sessionAsync.maybeWhen(
         data: (session) => FloatingActionButton.extended(
-          onPressed: () => _showAddSet(context, ref, session),
+          onPressed: () => _openSheet(context, session),
           icon: const Icon(Icons.add),
           label: const Text('Add Set'),
         ),
@@ -33,12 +36,21 @@ class TodayScreen extends ConsumerWidget {
     );
   }
 
-  void _showAddSet(BuildContext context, WidgetRef ref, WorkoutSession session) {
+  void _openSheet(
+    BuildContext context,
+    WorkoutSession session, {
+    int? editIndex,
+    EmbeddedSet? editSet,
+  }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => AddSetSheet(session: session),
+      builder: (_) => AddSetSheet(
+        session: session,
+        editIndex: editIndex,
+        editSet: editSet,
+      ),
     );
   }
 }
@@ -102,7 +114,10 @@ class _TotalVolumeTile extends StatelessWidget {
             const Spacer(),
             Text(
               '${totalVolume.toStringAsFixed(0)} kg',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -111,7 +126,7 @@ class _TotalVolumeTile extends StatelessWidget {
   }
 }
 
-class _MuscleGroupSection extends ConsumerWidget {
+class _MuscleGroupSection extends StatelessWidget {
   const _MuscleGroupSection({
     required this.group,
     required this.indexedSets,
@@ -122,8 +137,21 @@ class _MuscleGroupSection extends ConsumerWidget {
   final List<(int, EmbeddedSet)> indexedSets;
   final WorkoutSession session;
 
+  void _openEditSheet(BuildContext context, int idx, EmbeddedSet set) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => AddSetSheet(
+        session: session,
+        editIndex: idx,
+        editSet: set,
+      ),
+    );
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -131,15 +159,18 @@ class _MuscleGroupSection extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: Row(
             children: [
-              Icon(group.icon, size: 16, color: Theme.of(context).colorScheme.primary),
+              Icon(group.icon, size: 16,
+                  color: Theme.of(context).colorScheme.primary),
               const SizedBox(width: 6),
-              Text(group.label, style: Theme.of(context).textTheme.labelLarge),
+              Text(group.label,
+                  style: Theme.of(context).textTheme.labelLarge),
             ],
           ),
         ),
         for (final (idx, set) in indexedSets)
           _SetTile(
             set: set,
+            onEdit: () => _openEditSheet(context, idx, set),
             onDelete: () => DatabaseService.deleteSet(session, idx),
           ),
       ],
@@ -148,21 +179,41 @@ class _MuscleGroupSection extends ConsumerWidget {
 }
 
 class _SetTile extends StatelessWidget {
-  const _SetTile({required this.set, required this.onDelete});
+  const _SetTile({
+    required this.set,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
   final EmbeddedSet set;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     return Dismissible(
       key: ValueKey('${set.exerciseId}-${set.setNumber}-${set.weightKg}'),
-      direction: DismissDirection.endToStart,
+      // 右スワイプ → 編集
       background: Container(
+        color: Theme.of(context).colorScheme.primary,
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: 20),
+        child: const Icon(Icons.edit, color: Colors.white),
+      ),
+      // 左スワイプ → 削除
+      secondaryBackground: Container(
         color: Colors.red,
         alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 16),
+        padding: const EdgeInsets.only(right: 20),
         child: const Icon(Icons.delete, color: Colors.white),
       ),
+      confirmDismiss: (direction) async {
+        if (direction == DismissDirection.startToEnd) {
+          onEdit();
+          return false; // タイルは消さない
+        }
+        return true; // 左スワイプは削除確定
+      },
       onDismissed: (_) => onDelete(),
       child: ListTile(
         title: Text(set.exerciseName),
@@ -170,7 +221,8 @@ class _SetTile extends StatelessWidget {
         trailing: Text(
           '${set.weightKg.toStringAsFixed(1)} kg × ${set.reps}  '
           '(${set.volume.toStringAsFixed(0)})',
-          style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()]),
+          style: const TextStyle(
+              fontFeatures: [FontFeature.tabularFigures()]),
         ),
       ),
     );
