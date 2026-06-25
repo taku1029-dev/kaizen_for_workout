@@ -1,0 +1,52 @@
+name: "Step 2: Device Build (Signed IPA)"
+
+# 署名済み IPA を生成して artifact にアップロードする。
+# 事前に bootstrap-session.yml で FASTLANE_SESSION を取得し
+# GitHub Secrets に登録しておくこと。
+
+on:
+  workflow_dispatch:
+    inputs:
+      device_udid:
+        description: "iPhone UDID (Linux: idevice_id -l でUSB接続時に確認)"
+        required: false
+
+jobs:
+  build:
+    name: Build Signed IPA
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Fastlane
+        run: gem install fastlane --no-document
+
+      - name: Build and sign IPA
+        env:
+          FASTLANE_USER: "naruto.ando1029@gmail.com"
+          FASTLANE_SESSION: ${{ secrets.FASTLANE_SESSION }}
+          IOS_DEVICE_UDID: ${{ github.event.inputs.device_udid || secrets.IOS_DEVICE_UDID }}
+        run: fastlane device
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KaizenForWorkout-${{ github.run_number }}
+          path: build/ios/ipa/KaizenForWorkout.ipa
+          retention-days: 7
+
+      - name: Show install instructions
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "IPA のダウンロード方法:"
+          echo "  GitHub → Actions → このワークフロー → Artifacts"
+          echo ""
+          echo "Linux で iPhone にインストールする方法:"
+          echo "  sudo pacman -S libimobiledevice"
+          echo "  ideviceinstaller -i KaizenForWorkout.ipa"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

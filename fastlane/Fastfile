@@ -1,0 +1,49 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Build signed IPA for personal device (free Apple ID)"
+  lane :device do
+    udid = ENV["IOS_DEVICE_UDID"]
+
+    # 端末 UDID を Apple に登録（未登録の場合のみ追加）
+    if udid && !udid.empty?
+      register_devices(
+        devices: { "My iPhone" => udid },
+        username: "naruto.ando1029@gmail.com",
+      )
+    end
+
+    # 開発用証明書を取得（なければ作成）
+    get_certificates(
+      development: true,
+      username: "naruto.ando1029@gmail.com",
+    )
+
+    # 開発用 Provisioning Profile を取得（なければ作成）
+    get_provisioning_profile(
+      development: true,
+      app_identifier: "com.narutoando.kaizenForWorkout",
+      username: "naruto.ando1029@gmail.com",
+      ignore_profiles_with_different_name: false,
+    )
+
+    # Flutter ビルド（Isar コード生成含む）
+    sh("cd .. && flutter pub get")
+    sh("cd .. && dart run build_runner build --delete-conflicting-outputs")
+    sh("cd .. && flutter build ios --release --no-codesign")
+
+    # CocoaPods
+    cocoapods(podfile: "ios/Podfile", use_bundle_exec: false)
+
+    # 署名＋IPA パッケージング
+    build_app(
+      workspace: "ios/Runner.xcworkspace",
+      scheme: "Runner",
+      configuration: "Release",
+      export_method: "development",
+      output_directory: "build/ios/ipa",
+      output_name: "KaizenForWorkout.ipa",
+      xcargs: "-allowProvisioningUpdates",
+    )
+  end
+end

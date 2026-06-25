@@ -1,0 +1,35 @@
+name: "Step 1: Bootstrap Session Token (One-time setup)"
+
+# FASTLANE_SESSION を取得するための一回限りのワークフロー。
+# SSH で macOS runner に入り、fastlane spaceauth を実行して
+# 出力されたトークンを GitHub Secrets の FASTLANE_SESSION に登録する。
+
+on:
+  workflow_dispatch:
+
+jobs:
+  bootstrap:
+    name: Get FASTLANE_SESSION via SSH
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Fastlane
+        run: gem install fastlane --no-document
+
+      - name: Open SSH session (tmate)
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # SSH 接続後、以下を実行する:
+        #
+        #   fastlane spaceauth -u naruto.ando1029@gmail.com
+        #
+        # 2FA コードを入力すると以下の形式でトークンが出力される:
+        #   export FASTLANE_SESSION='...'
+        #
+        # そのトークン文字列（クォート内の部分）を
+        # GitHub Settings → Secrets → FASTLANE_SESSION に登録する。
+        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
