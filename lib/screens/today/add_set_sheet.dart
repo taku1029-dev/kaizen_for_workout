@@ -29,10 +29,10 @@ class AddSetSheet extends ConsumerStatefulWidget {
 
 class _AddSetSheetState extends ConsumerState<AddSetSheet> {
   Exercise? _selectedExercise;
+  bool _autoSelectDone = false;
   late int _reps;
   late double _weightKg;
   late final TextEditingController _weightController;
-  ProviderSubscription<AsyncValue<List<Exercise>>>? _autoSelectSub;
 
   @override
   void initState() {
@@ -46,30 +46,11 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
       _reps = 10;
       _weightKg = 20.0;
       _weightController = TextEditingController(text: '20.0');
-      _autoSelectSub = ref.listenManual(exercisesProvider, (_, next) {
-        next.whenData((exercises) {
-          if (exercises.isNotEmpty && _selectedExercise == null) {
-            void doSelect() {
-              if (mounted && _selectedExercise == null) {
-                _onExerciseChanged(exercises.first);
-              }
-              _autoSelectSub?.close();
-              _autoSelectSub = null;
-            }
-            if (mounted) {
-              doSelect();
-            } else {
-              WidgetsBinding.instance.addPostFrameCallback((_) => doSelect());
-            }
-          }
-        });
-      }, fireImmediately: true);
     }
   }
 
   @override
   void dispose() {
-    _autoSelectSub?.close();
     _weightController.dispose();
     super.dispose();
   }
@@ -119,6 +100,20 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // 追加モード: exercises が読み込まれたら最初の種目を自動選択する
+    if (!widget.isEditing && !_autoSelectDone) {
+      ref.watch(exercisesProvider).whenData((exercises) {
+        if (exercises.isNotEmpty) {
+          _autoSelectDone = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _selectedExercise == null) {
+              _onExerciseChanged(exercises.first);
+            }
+          });
+        }
+      });
+    }
+
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SafeArea(
@@ -153,7 +148,6 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
                     _ExerciseNameTile(name: widget.editSet!.exerciseName)
                   else
                     _ExercisePicker(
-                      key: ValueKey(_selectedExercise?.id),
                       selected: _selectedExercise,
                       onChanged: _onExerciseChanged,
                     ),
@@ -205,7 +199,7 @@ class _ExerciseNameTile extends StatelessWidget {
 }
 
 class _ExercisePicker extends ConsumerWidget {
-  const _ExercisePicker({super.key, required this.selected, required this.onChanged});
+  const _ExercisePicker({required this.selected, required this.onChanged});
   final Exercise? selected;
   final ValueChanged<Exercise?> onChanged;
 
@@ -218,7 +212,8 @@ class _ExercisePicker extends ConsumerWidget {
           labelText: 'Exercise',
           border: OutlineInputBorder(),
         ),
-        initialValue: selected,
+        // ignore: deprecated_member_use
+        value: selected,
         items: exercises
             .map((e) => DropdownMenuItem(value: e, child: Text(e.name)))
             .toList(),
