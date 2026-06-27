@@ -33,6 +33,7 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
   late int _reps;
   late double _weightKg;
   late final TextEditingController _weightController;
+  DateTime? _startedAt;
 
   @override
   void initState() {
@@ -43,6 +44,7 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
       _weightController =
           TextEditingController(text: widget.editSet!.weightKg.toStringAsFixed(1));
     } else {
+      _startedAt = DateTime.now();
       _reps = 10;
       _weightKg = 20.0;
       _weightController = TextEditingController(text: '20.0');
@@ -79,7 +81,9 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
           ..muscleGroup = widget.editSet!.muscleGroup
           ..setNumber = widget.editSet!.setNumber
           ..reps = _reps
-          ..weightKg = _weightKg;
+          ..weightKg = _weightKg
+          ..startedAt = widget.editSet!.startedAt
+          ..endedAt = widget.editSet!.endedAt;
         await DatabaseService.updateSet(widget.session, widget.editIndex!, updated);
       } else {
         final exercise = _selectedExercise;
@@ -93,7 +97,9 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
           ..muscleGroup = exercise.muscleGroup
           ..setNumber = count + 1
           ..reps = _reps
-          ..weightKg = _weightKg;
+          ..weightKg = _weightKg
+          ..startedAt = _startedAt
+          ..endedAt = DateTime.now();
         await DatabaseService.addSet(widget.session, newSet);
       }
     } catch (e) {

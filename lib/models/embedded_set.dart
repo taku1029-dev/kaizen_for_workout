@@ -17,6 +17,15 @@ class EmbeddedSet {
   int setNumber = 1;
   int reps = 10;
   double weightKg = 20.0;
+  DateTime? startedAt;
+  DateTime? endedAt;
 
   double get volume => weightKg * reps;
+
+  @ignore
+  Duration? get activeDuration {
+    if (startedAt == null || endedAt == null) return null;
+    final d = endedAt!.difference(startedAt!);
+    return d.isNegative ? null : d;
+  }
 }
