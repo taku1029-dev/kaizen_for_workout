@@ -46,6 +46,8 @@ jobs:
     name: Build iOS
     runs-on: macos-latest
     needs: analyze-and-test
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
