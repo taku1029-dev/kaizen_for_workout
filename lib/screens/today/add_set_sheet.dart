@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,19 +9,23 @@ import '../../models/workout_session.dart';
 import '../../providers/app_providers.dart';
 import '../../services/database_service.dart';
 
+enum _TimerState { idle, active, done }
+
 class AddSetSheet extends ConsumerStatefulWidget {
   const AddSetSheet({
     super.key,
     required this.session,
     this.editIndex,
     this.editSet,
+    this.lastSetEndedAt,
   });
 
   final WorkoutSession session;
-
-  /// 非 null のとき編集モード
   final int? editIndex;
   final EmbeddedSet? editSet;
+
+  /// 前セットの終了時刻（休憩タイマー表示用）
+  final DateTime? lastSetEndedAt;
 
   bool get isEditing => editIndex != null;
 
@@ -33,7 +39,11 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
   late int _reps;
   late double _weightKg;
   late final TextEditingController _weightController;
+
+  _TimerState _timerState = _TimerState.idle;
   DateTime? _startedAt;
+  DateTime? _endedAt;
+  Timer? _ticker;
 
   @override
   void initState() {
@@ -44,15 +54,19 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
       _weightController =
           TextEditingController(text: widget.editSet!.weightKg.toStringAsFixed(1));
     } else {
-      _startedAt = DateTime.now();
       _reps = 10;
       _weightKg = 20.0;
       _weightController = TextEditingController(text: '20.0');
+      // 休憩・セットタイマーを毎秒再描画する
+      _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
     }
   }
 
   @override
   void dispose() {
+    _ticker?.cancel();
     _weightController.dispose();
     super.dispose();
   }
@@ -61,7 +75,6 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
     setState(() => _selectedExercise = exercise);
     if (exercise == null) return;
 
-    // 前回値を取得して重量・レップ数に反映する
     final last = await DatabaseService.lastSetFor(exercise.id);
     if (last != null && mounted) {
       setState(() {
@@ -70,6 +83,20 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
         _weightController.text = last.weightKg.toStringAsFixed(1);
       });
     }
+  }
+
+  void _onStart() {
+    setState(() {
+      _startedAt = DateTime.now();
+      _timerState = _TimerState.active;
+    });
+  }
+
+  void _onStop() {
+    setState(() {
+      _endedAt = DateTime.now();
+      _timerState = _TimerState.done;
+    });
   }
 
   Future<void> _save() async {
@@ -99,7 +126,7 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
           ..reps = _reps
           ..weightKg = _weightKg
           ..startedAt = _startedAt
-          ..endedAt = DateTime.now();
+          ..endedAt = _endedAt;
         await DatabaseService.addSet(widget.session, newSet);
       }
     } catch (e) {
@@ -119,7 +146,7 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
 
   @override
   Widget build(BuildContext context) {
-    // 追加モード: exercises が読み込まれたら最初の種目を自動選択する
+    // 追加モード: exercises ロード後に最初の種目を自動選択
     if (!widget.isEditing && !_autoSelectDone) {
       ref.watch(exercisesProvider).whenData((exercises) {
         if (exercises.isNotEmpty) {
@@ -132,6 +159,9 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
         }
       });
     }
+
+    final now = DateTime.now();
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
@@ -159,34 +189,86 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
             const Divider(),
 
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: Column(
                 children: [
-                  // 編集モード: 種目名を固定表示 / 追加モード: ドロップダウン
+                  // 種目: idle のみドロップダウン、active/done は固定表示
                   if (widget.isEditing)
                     _ExerciseNameTile(name: widget.editSet!.exerciseName)
-                  else
+                  else if (_timerState == _TimerState.idle)
                     _ExercisePicker(
                       selected: _selectedExercise,
                       onChanged: _onExerciseChanged,
-                    ),
+                    )
+                  else
+                    _ExerciseNameTile(name: _selectedExercise?.name ?? ''),
 
                   const SizedBox(height: 16),
+
                   _WeightAndRepsRow(
                     weightController: _weightController,
                     reps: _reps,
                     onWeightChanged: (v) => setState(() => _weightKg = v),
                     onRepsChanged: (v) => setState(() => _reps = v),
                   ),
-                  const SizedBox(height: 24),
 
+                  // ── タイマーセクション（追加モードのみ） ──────────────
+                  if (!widget.isEditing) ...[
+                    const SizedBox(height: 20),
+
+                    if (_timerState == _TimerState.idle) ...[
+                      // 前セット終了からの休憩表示
+                      if (widget.lastSetEndedAt != null)
+                        _TimerChip(
+                          label: 'Rest',
+                          duration: now.difference(widget.lastSetEndedAt!),
+                          color: Colors.orange,
+                        )
+                      else
+                        const SizedBox(height: 8),
+                    ] else if (_timerState == _TimerState.active) ...[
+                      // セット中: 大きなタイマー
+                      SizedBox(
+                        width: double.infinity,
+                        child: Text(
+                          _fmtTimer(now.difference(_startedAt!)),
+                          style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                                fontFeatures: const [FontFeature.tabularFigures()],
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.primary,
+                              ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ] else ...[
+                      // セット終了後: セット時間 + 休憩タイマー
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _TimerChip(
+                            label: 'Set',
+                            duration: _endedAt!.difference(_startedAt!),
+                            color: colorScheme.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          _TimerChip(
+                            label: 'Rest',
+                            duration: now.difference(_endedAt!),
+                            color: Colors.orange,
+                          ),
+                        ],
+                      ),
+                    ],
+
+                    const SizedBox(height: 20),
+                  ] else ...[
+                    const SizedBox(height: 24),
+                  ],
+
+                  // アクションボタン
                   SizedBox(
                     width: double.infinity,
-                    child: FilledButton(
-                      onPressed:
-                          (widget.isEditing || _selectedExercise != null) ? _save : null,
-                      child: Text(widget.isEditing ? 'Update Set' : 'Save Set'),
-                    ),
+                    child: _buildActionButton(colorScheme),
                   ),
                   const SizedBox(height: 8),
                 ],
@@ -197,9 +279,86 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
       ),
     );
   }
+
+  Widget _buildActionButton(ColorScheme colorScheme) {
+    if (widget.isEditing) {
+      return FilledButton(
+        onPressed: _save,
+        child: const Text('Update Set'),
+      );
+    }
+
+    return switch (_timerState) {
+      _TimerState.idle => FilledButton.icon(
+          onPressed: _selectedExercise != null ? _onStart : null,
+          icon: const Icon(Icons.play_arrow),
+          label: const Text('Start Set'),
+        ),
+      _TimerState.active => FilledButton.icon(
+          onPressed: _onStop,
+          style: FilledButton.styleFrom(backgroundColor: Colors.red),
+          icon: const Icon(Icons.stop),
+          label: const Text('Stop Set'),
+        ),
+      _TimerState.done => FilledButton.icon(
+          onPressed: _save,
+          icon: const Icon(Icons.check),
+          label: const Text('Save Set'),
+        ),
+    };
+  }
+}
+
+String _fmtTimer(Duration d) {
+  final m = d.inMinutes;
+  final s = d.inSeconds % 60;
+  return '$m:${s.toString().padLeft(2, '0')}';
 }
 
 // ─── サブウィジェット ────────────────────────────────────────────
+
+class _TimerChip extends StatelessWidget {
+  const _TimerChip({
+    required this.label,
+    required this.duration,
+    required this.color,
+  });
+
+  final String label;
+  final Duration duration;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            _fmtTimer(duration),
+            style: TextStyle(
+              color: color,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _ExerciseNameTile extends StatelessWidget {
   const _ExerciseNameTile({required this.name});

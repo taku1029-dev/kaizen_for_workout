@@ -40,7 +40,10 @@ class TodayScreen extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => AddSetSheet(session: session),
+      builder: (_) => AddSetSheet(
+        session: session,
+        lastSetEndedAt: session.sets.isNotEmpty ? session.sets.last.endedAt : null,
+      ),
     );
   }
 }
