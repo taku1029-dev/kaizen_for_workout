@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/exercise.dart';
 import '../models/embedded_set.dart';
+import '../models/muscle_group.dart';
 import '../models/workout_session.dart';
 import '../models/seed_data.dart';
 
@@ -105,6 +106,113 @@ class DatabaseService {
   static Future<void> deleteSession(WorkoutSession session) async {
     await _db.writeTxn(() async {
       await _db.workoutSessions.delete(session.id);
+    });
+  }
+
+  // MARK: - Demo data
+
+  /// グループ別の基準重量 (kg)。デモデータ生成のベース。
+  static const Map<MuscleGroup, double> _demoBaseWeight = {
+    MuscleGroup.chest: 40,
+    MuscleGroup.back: 45,
+    MuscleGroup.shouldersFront: 30,
+    MuscleGroup.shouldersSide: 12,
+    MuscleGroup.shouldersRear: 10,
+    MuscleGroup.biceps: 14,
+    MuscleGroup.triceps: 18,
+    MuscleGroup.forearms: 12,
+    MuscleGroup.quads: 70,
+    MuscleGroup.hamstrings: 50,
+    MuscleGroup.glutes: 60,
+    MuscleGroup.calves: 80,
+    MuscleGroup.core: 25,
+  };
+
+  /// 過去 8 週分の Push/Pull/Legs スプリットを progressive overload で生成する。
+  /// 週次成長率・最大重量推移チャートの動作確認用。
+  /// 戻り値: 生成したセッション数。
+  static Future<int> loadDemoData() async {
+    final exercises = await _db.exercises.where().findAll();
+    final byGroup = <MuscleGroup, List<Exercise>>{};
+    for (final e in exercises) {
+      byGroup.putIfAbsent(e.muscleGroup, () => []).add(e);
+    }
+
+    const push = [
+      MuscleGroup.chest,
+      MuscleGroup.shouldersFront,
+      MuscleGroup.shouldersSide,
+      MuscleGroup.triceps,
+    ];
+    const pull = [
+      MuscleGroup.back,
+      MuscleGroup.shouldersRear,
+      MuscleGroup.biceps,
+      MuscleGroup.forearms,
+    ];
+    const legs = [
+      MuscleGroup.quads,
+      MuscleGroup.hamstrings,
+      MuscleGroup.glutes,
+      MuscleGroup.calves,
+      MuscleGroup.core,
+    ];
+    const split = [(push, 0), (pull, 2), (legs, 4)];
+
+    final today = DateTime.now();
+    const weeks = 8;
+    final sessions = <WorkoutSession>[];
+
+    for (var w = 0; w < weeks; w++) {
+      final weeksAgo = weeks - 1 - w; // w=0 が最古
+      final factor = 1 + 0.025 * w; // 毎週 +2.5%
+      for (final (groups, dayOffset) in split) {
+        final date = today.subtract(Duration(days: weeksAgo * 7 + (6 - dayOffset)));
+        if (date.isAfter(today)) continue;
+
+        final sets = <EmbeddedSet>[];
+        final counters = <int, int>{};
+        for (final g in groups) {
+          final base = _demoBaseWeight[g] ?? 20;
+          for (final ex in byGroup[g] ?? const <Exercise>[]) {
+            for (var s = 0; s < 3; s++) {
+              counters[ex.id] = (counters[ex.id] ?? 0) + 1;
+              sets.add(EmbeddedSet()
+                ..exerciseId = ex.id
+                ..exerciseName = ex.name
+                ..muscleGroup = g
+                ..setNumber = counters[ex.id]!
+                ..reps = 8 + s
+                ..weightKg = (base * factor * 2).round() / 2);
+            }
+          }
+        }
+        if (sets.isEmpty) continue;
+        sessions.add(WorkoutSession()
+          ..date = DateTime(date.year, date.month, date.day, 18)
+          ..sets = sets);
+      }
+    }
+
+    await _db.writeTxn(() async {
+      await _db.workoutSessions.putAll(sessions);
+    });
+    return sessions.length;
+  }
+
+  /// 全ワークアウトセッションを削除する（種目マスタは残す）。
+  static Future<void> clearAllSessions() async {
+    await _db.writeTxn(() async {
+      await _db.workoutSessions.clear();
+    });
+  }
+
+  /// 種目マスタを初期シードに戻す。
+  /// enum 細分化前の古い種目データを持つ既存インストールの修復用。
+  static Future<void> resetExercisesToDefaults() async {
+    await _db.writeTxn(() async {
+      await _db.exercises.clear();
+      await _db.exercises.putAll(SeedData.exercises);
     });
   }
 

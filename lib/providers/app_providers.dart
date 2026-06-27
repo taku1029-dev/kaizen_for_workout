@@ -60,5 +60,5 @@ final analyticsServiceProvider = Provider<AnalyticsService>(
 );
 
 final selectedMuscleGroupProvider = StateProvider<MuscleGroup>(
-  (_) => MuscleGroup.arms,
+  (_) => MuscleGroup.chest,
 );

@@ -94,7 +94,7 @@ class ExerciseManagerScreen extends ConsumerWidget {
 
   void _showAddExercise(BuildContext context) {
     final nameController = TextEditingController();
-    MuscleGroup selectedGroup = MuscleGroup.arms;
+    MuscleGroup selectedGroup = MuscleGroup.chest;
 
     showDialog(
       context: context,

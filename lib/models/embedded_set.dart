@@ -12,7 +12,7 @@ class EmbeddedSet {
   String exerciseName = '';
 
   @enumerated
-  MuscleGroup muscleGroup = MuscleGroup.arms;
+  MuscleGroup muscleGroup = MuscleGroup.chest;
 
   int setNumber = 1;
   int reps = 10;

@@ -13,7 +13,7 @@ void main() {
   Exercise makeExercise({
     int id = 1,
     String name = 'Bicep Curls',
-    MuscleGroup group = MuscleGroup.arms,
+    MuscleGroup group = MuscleGroup.biceps,
   }) {
     return Exercise()
       ..id = id
@@ -60,7 +60,7 @@ void main() {
 
   group('dailyVolume', () {
     test('sums volume per muscle group', () {
-      final arms = makeExercise(id: 1, group: MuscleGroup.arms);
+      final arms = makeExercise(id: 1, group: MuscleGroup.biceps);
       final forearms = makeExercise(id: 2, name: 'Wrist Curls', group: MuscleGroup.forearms);
 
       final session = makeSession(sets: [
@@ -71,7 +71,7 @@ void main() {
 
       final result = analytics.dailyVolume(session);
 
-      expect(result[MuscleGroup.arms],     closeTo(380.0, 0.001));
+      expect(result[MuscleGroup.biceps],     closeTo(380.0, 0.001));
       expect(result[MuscleGroup.forearms], closeTo(120.0, 0.001));
       expect(result[MuscleGroup.chest],    isNull);
     });
@@ -86,7 +86,7 @@ void main() {
 
   group('weeklyGrowthRate', () {
     test('returns positive rate when volume increases', () {
-      final arms = makeExercise(group: MuscleGroup.arms);
+      final arms = makeExercise(group: MuscleGroup.biceps);
       final today = DateTime.now();
       final lastWeek = today.subtract(const Duration(days: 7));
 
@@ -95,13 +95,13 @@ void main() {
         makeSession(date: today,    sets: [makeSet(exercise: arms, reps: 10, weightKg: 12.0)]), // 120
       ];
 
-      final rate = analytics.weeklyGrowthRate(sessions, MuscleGroup.arms, referenceDate: today);
+      final rate = analytics.weeklyGrowthRate(sessions, MuscleGroup.biceps, referenceDate: today);
       expect(rate, isNotNull);
       expect(rate!, closeTo(20.0, 0.01)); // +20%
     });
 
     test('returns negative rate when volume decreases', () {
-      final arms = makeExercise(group: MuscleGroup.arms);
+      final arms = makeExercise(group: MuscleGroup.biceps);
       final today = DateTime.now();
       final lastWeek = today.subtract(const Duration(days: 7));
 
@@ -110,18 +110,18 @@ void main() {
         makeSession(date: today,    sets: [makeSet(exercise: arms, reps: 10, weightKg: 10.0)]), // 100
       ];
 
-      final rate = analytics.weeklyGrowthRate(sessions, MuscleGroup.arms, referenceDate: today);
+      final rate = analytics.weeklyGrowthRate(sessions, MuscleGroup.biceps, referenceDate: today);
       expect(rate, isNotNull);
       expect(rate!, closeTo(-50.0, 0.01)); // -50%
     });
 
     test('returns null when last week has no data', () {
-      final arms = makeExercise(group: MuscleGroup.arms);
+      final arms = makeExercise(group: MuscleGroup.biceps);
       final sessions = [
         makeSession(sets: [makeSet(exercise: arms, reps: 10, weightKg: 20.0)]),
       ];
 
-      final rate = analytics.weeklyGrowthRate(sessions, MuscleGroup.arms);
+      final rate = analytics.weeklyGrowthRate(sessions, MuscleGroup.biceps);
       expect(rate, isNull);
     });
   });

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/embedded_set.dart';
+import '../../models/muscle_group.dart';
 import '../../models/workout_session.dart';
 import '../../providers/app_providers.dart';
 import '../../services/database_service.dart';
@@ -88,7 +89,7 @@ class _TimelineBody extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.only(bottom: 96, top: 8, left: 16, right: 16),
       children: [
-        _TotalVolumeTile(totalVolume: session.totalVolume),
+        _VolumeBreakdownCard(session: session),
         const SizedBox(height: 8),
         for (var i = 0; i < sets.length; i++) ...[
           if (i > 0) _RestGap(prev: sets[i - 1], next: sets[i]),
@@ -107,26 +108,87 @@ class _TimelineBody extends StatelessWidget {
 
 // ─── 合計ボリュームヘッダー ─────────────────────────────────────
 
-class _TotalVolumeTile extends StatelessWidget {
-  const _TotalVolumeTile({required this.totalVolume});
-  final double totalVolume;
+/// 合計ボリューム + 部位別ブレイクダウン（多い順、ミニバー付き）
+class _VolumeBreakdownCard extends StatelessWidget {
+  const _VolumeBreakdownCard({required this.session});
+  final WorkoutSession session;
 
   @override
   Widget build(BuildContext context) {
+    final byGroup = <MuscleGroup, double>{};
+    for (final s in session.sets) {
+      byGroup[s.muscleGroup] = (byGroup[s.muscleGroup] ?? 0) + s.volume;
+    }
+    final entries = byGroup.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final maxVol = entries.isEmpty ? 1.0 : entries.first.value;
+    final total = session.totalVolume;
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Total Volume', style: TextStyle(fontSize: 16)),
-            const Spacer(),
-            Text(
-              '${totalVolume.toStringAsFixed(0)} kg',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(fontWeight: FontWeight.bold),
+            Row(
+              children: [
+                const Text('Total Volume', style: TextStyle(fontSize: 16)),
+                const Spacer(),
+                Text(
+                  '${total.toStringAsFixed(0)} kg',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ],
             ),
+            if (entries.isNotEmpty) ...[
+              const Divider(height: 20),
+              for (final e in entries)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Icon(e.key.icon, size: 15, color: colorScheme.primary),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 96,
+                        child: Text(
+                          e.key.label,
+                          style: Theme.of(context).textTheme.bodySmall,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: maxVol == 0 ? 0 : e.value / maxVol,
+                            minHeight: 6,
+                            backgroundColor:
+                                colorScheme.primary.withValues(alpha: 0.08),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 52,
+                        child: Text(
+                          '${e.value.toStringAsFixed(0)} kg',
+                          textAlign: TextAlign.right,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                fontFeatures: const [FontFeature.tabularFigures()],
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 4),
+            ],
           ],
         ),
       ),

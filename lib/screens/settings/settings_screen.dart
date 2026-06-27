@@ -1,9 +1,106 @@
 import 'package:flutter/material.dart';
 
+import '../../services/database_service.dart';
 import 'exercise_manager_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
+
+  Future<void> _loadDemoData(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Load demo data?'),
+        content: const Text(
+          'Adds 8 weeks of sample workouts (Push/Pull/Legs with progressive '
+          'overload) so you can preview weekly growth and max-weight charts. '
+          'Existing sessions are kept.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Load'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final count = await DatabaseService.loadDemoData();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Added $count demo sessions')),
+      );
+    }
+  }
+
+  Future<void> _clearSessions(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Clear all sessions?'),
+        content: const Text(
+          'Deletes every recorded workout session. Exercises are kept. '
+          'This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    await DatabaseService.clearAllSessions();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('All sessions cleared')),
+      );
+    }
+  }
+
+  Future<void> _resetExercises(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Reset exercises?'),
+        content: const Text(
+          'Replaces the exercise list with the built-in defaults (refined '
+          'muscle groups). Custom exercises you added will be removed. '
+          'Recorded sessions are kept.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    await DatabaseService.resetExercisesToDefaults();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Exercises reset to defaults')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,6 +116,26 @@ class SettingsScreen extends StatelessWidget {
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const ExerciseManagerScreen()),
             ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.restart_alt),
+            title: const Text('Reset exercises to defaults'),
+            subtitle: const Text('Apply refined muscle groups'),
+            onTap: () => _resetExercises(context),
+          ),
+          const Divider(),
+          const _SectionHeader('Demo'),
+          ListTile(
+            leading: const Icon(Icons.auto_graph),
+            title: const Text('Load demo data'),
+            subtitle: const Text('8 weeks of sample workouts'),
+            onTap: () => _loadDemoData(context),
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete_sweep, color: Colors.red),
+            title: const Text('Clear all sessions',
+                style: TextStyle(color: Colors.red)),
+            onTap: () => _clearSessions(context),
           ),
           const Divider(),
           const _SectionHeader('About'),
