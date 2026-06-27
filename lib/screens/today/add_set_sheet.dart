@@ -45,6 +45,12 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
       _reps = 10;
       _weightKg = 20.0;
       _weightController = TextEditingController(text: '20.0');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.read(exercisesProvider).whenData((exercises) {
+          if (exercises.isNotEmpty) _onExerciseChanged(exercises.first);
+        });
+      });
     }
   }
 
@@ -133,6 +139,7 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
                     _ExerciseNameTile(name: widget.editSet!.exerciseName)
                   else
                     _ExercisePicker(
+                      key: ValueKey(_selectedExercise?.id),
                       selected: _selectedExercise,
                       onChanged: _onExerciseChanged,
                     ),
@@ -184,7 +191,7 @@ class _ExerciseNameTile extends StatelessWidget {
 }
 
 class _ExercisePicker extends ConsumerWidget {
-  const _ExercisePicker({required this.selected, required this.onChanged});
+  const _ExercisePicker({super.key, required this.selected, required this.onChanged});
   final Exercise? selected;
   final ValueChanged<Exercise?> onChanged;
 
