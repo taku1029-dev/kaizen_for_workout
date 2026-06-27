@@ -58,20 +58,21 @@ class DatabaseService {
   }
 
   static Future<void> addSet(WorkoutSession session, EmbeddedSet set) async {
-    session.sets.add(set);
+    session.sets = [...session.sets, set];
     await _db.writeTxn(() async {
       await _db.workoutSessions.put(session);
     });
   }
 
   static Future<void> deleteSet(WorkoutSession session, int index) async {
-    session.sets.removeAt(index);
+    final mutable = List<EmbeddedSet>.from(session.sets)..removeAt(index);
     // Renumber each exercise's sets sequentially after deletion
     final counters = <int, int>{};
-    for (final s in session.sets) {
+    for (final s in mutable) {
       counters[s.exerciseId] = (counters[s.exerciseId] ?? 0) + 1;
       s.setNumber = counters[s.exerciseId]!;
     }
+    session.sets = mutable;
     await _db.writeTxn(() async {
       await _db.workoutSessions.put(session);
     });
@@ -82,7 +83,9 @@ class DatabaseService {
     int index,
     EmbeddedSet updated,
   ) async {
-    session.sets[index] = updated;
+    final mutable = List<EmbeddedSet>.from(session.sets);
+    mutable[index] = updated;
+    session.sets = mutable;
     await _db.writeTxn(() async {
       await _db.workoutSessions.put(session);
     });

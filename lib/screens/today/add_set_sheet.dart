@@ -71,29 +71,42 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
   }
 
   Future<void> _save() async {
-    if (widget.isEditing) {
-      final updated = EmbeddedSet()
-        ..exerciseId = widget.editSet!.exerciseId
-        ..exerciseName = widget.editSet!.exerciseName
-        ..muscleGroup = widget.editSet!.muscleGroup
-        ..setNumber = widget.editSet!.setNumber
-        ..reps = _reps
-        ..weightKg = _weightKg;
-      await DatabaseService.updateSet(widget.session, widget.editIndex!, updated);
-    } else {
-      final exercise = _selectedExercise;
-      if (exercise == null) return;
-      final count = widget.session.sets
-          .where((s) => s.exerciseId == exercise.id)
-          .length;
-      final newSet = EmbeddedSet()
-        ..exerciseId = exercise.id
-        ..exerciseName = exercise.name
-        ..muscleGroup = exercise.muscleGroup
-        ..setNumber = count + 1
-        ..reps = _reps
-        ..weightKg = _weightKg;
-      await DatabaseService.addSet(widget.session, newSet);
+    try {
+      if (widget.isEditing) {
+        final updated = EmbeddedSet()
+          ..exerciseId = widget.editSet!.exerciseId
+          ..exerciseName = widget.editSet!.exerciseName
+          ..muscleGroup = widget.editSet!.muscleGroup
+          ..setNumber = widget.editSet!.setNumber
+          ..reps = _reps
+          ..weightKg = _weightKg;
+        await DatabaseService.updateSet(widget.session, widget.editIndex!, updated);
+      } else {
+        final exercise = _selectedExercise;
+        if (exercise == null) return;
+        final count = widget.session.sets
+            .where((s) => s.exerciseId == exercise.id)
+            .length;
+        final newSet = EmbeddedSet()
+          ..exerciseId = exercise.id
+          ..exerciseName = exercise.name
+          ..muscleGroup = exercise.muscleGroup
+          ..setNumber = count + 1
+          ..reps = _reps
+          ..weightKg = _weightKg;
+        await DatabaseService.addSet(widget.session, newSet);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Save failed: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 6),
+          ),
+        );
+      }
+      return;
     }
     if (mounted) Navigator.of(context).pop();
   }
