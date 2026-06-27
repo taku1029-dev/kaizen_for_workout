@@ -75,3 +75,15 @@ jobs:
           name: KaizenForWorkout-unsigned
           path: KaizenForWorkout.ipa
           retention-days: 30
+
+      # main ブランチのみ: IPA を GitHub Release に直接添付
+      # Release ページから .ipa のまま直接ダウンロードできる（ZIP ラップなし）
+      - name: Create GitHub Release with IPA
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "Build #${{ github.run_number }}"
+          prerelease: true
+          files: KaizenForWorkout.ipa
+          body: "Unsigned IPA — SideStore でインストール可能"
