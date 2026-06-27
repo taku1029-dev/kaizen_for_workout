@@ -32,6 +32,7 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
   late int _reps;
   late double _weightKg;
   late final TextEditingController _weightController;
+  ProviderSubscription<AsyncValue<List<Exercise>>>? _autoSelectSub;
 
   @override
   void initState() {
@@ -45,17 +46,30 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
       _reps = 10;
       _weightKg = 20.0;
       _weightController = TextEditingController(text: '20.0');
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        ref.read(exercisesProvider).whenData((exercises) {
-          if (exercises.isNotEmpty) _onExerciseChanged(exercises.first);
+      _autoSelectSub = ref.listenManual(exercisesProvider, (_, next) {
+        next.whenData((exercises) {
+          if (exercises.isNotEmpty && _selectedExercise == null) {
+            void doSelect() {
+              if (mounted && _selectedExercise == null) {
+                _onExerciseChanged(exercises.first);
+              }
+              _autoSelectSub?.close();
+              _autoSelectSub = null;
+            }
+            if (mounted) {
+              doSelect();
+            } else {
+              WidgetsBinding.instance.addPostFrameCallback((_) => doSelect());
+            }
+          }
         });
-      });
+      }, fireImmediately: true);
     }
   }
 
   @override
   void dispose() {
+    _autoSelectSub?.close();
     _weightController.dispose();
     super.dispose();
   }
