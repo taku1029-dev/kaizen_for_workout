@@ -69,7 +69,7 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
     }
   }
 
-  void _save() {
+  Future<void> _save() async {
     if (widget.isEditing) {
       final updated = EmbeddedSet()
         ..exerciseId = widget.editSet!.exerciseId
@@ -78,7 +78,7 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
         ..setNumber = widget.editSet!.setNumber
         ..reps = _reps
         ..weightKg = _weightKg;
-      DatabaseService.updateSet(widget.session, widget.editIndex!, updated);
+      await DatabaseService.updateSet(widget.session, widget.editIndex!, updated);
     } else {
       final exercise = _selectedExercise;
       if (exercise == null) return;
@@ -92,9 +92,9 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
         ..setNumber = count + 1
         ..reps = _reps
         ..weightKg = _weightKg;
-      DatabaseService.addSet(widget.session, newSet);
+      await DatabaseService.addSet(widget.session, newSet);
     }
-    Navigator.of(context).pop();
+    if (mounted) Navigator.of(context).pop();
   }
 
   @override
