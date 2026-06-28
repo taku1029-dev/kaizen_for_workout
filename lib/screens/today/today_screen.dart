@@ -7,6 +7,7 @@ import '../../models/muscle_group.dart';
 import '../../models/workout_session.dart';
 import '../../providers/app_providers.dart';
 import '../../services/database_service.dart';
+import '../../utils/units.dart';
 import 'add_set_sheet.dart';
 
 class TodayScreen extends ConsumerWidget {
@@ -109,12 +110,13 @@ class _TimelineBody extends StatelessWidget {
 // ─── 合計ボリュームヘッダー ─────────────────────────────────────
 
 /// 合計ボリューム + 部位別ブレイクダウン（多い順、ミニバー付き）
-class _VolumeBreakdownCard extends StatelessWidget {
+class _VolumeBreakdownCard extends ConsumerWidget {
   const _VolumeBreakdownCard({required this.session});
   final WorkoutSession session;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unit = ref.watch(weightUnitProvider);
     final byGroup = <MuscleGroup, double>{};
     for (final s in session.sets) {
       byGroup[s.muscleGroup] = (byGroup[s.muscleGroup] ?? 0) + s.volume;
@@ -136,7 +138,7 @@ class _VolumeBreakdownCard extends StatelessWidget {
                 const Text('Total Volume', style: TextStyle(fontSize: 16)),
                 const Spacer(),
                 Text(
-                  '${total.toStringAsFixed(0)} kg',
+                  formatVolume(total, unit),
                   style: Theme.of(context)
                       .textTheme
                       .titleLarge
@@ -174,9 +176,9 @@ class _VolumeBreakdownCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       SizedBox(
-                        width: 52,
+                        width: 56,
                         child: Text(
-                          '${e.value.toStringAsFixed(0)} kg',
+                          formatVolume(e.value, unit),
                           textAlign: TextAlign.right,
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 fontWeight: FontWeight.w600,
@@ -243,7 +245,7 @@ class _RestGap extends StatelessWidget {
 
 // ─── タイムラインのセットアイテム ───────────────────────────────
 
-class _TimelineSetTile extends StatelessWidget {
+class _TimelineSetTile extends ConsumerWidget {
   const _TimelineSetTile({
     required this.index,
     required this.set,
@@ -259,7 +261,8 @@ class _TimelineSetTile extends StatelessWidget {
   final VoidCallback onEdit;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unit = ref.watch(weightUnitProvider);
     final colorScheme = Theme.of(context).colorScheme;
     final timeLabel = set.startedAt != null
         ? TimeOfDay.fromDateTime(set.startedAt!).format(context)
@@ -383,7 +386,7 @@ class _TimelineSetTile extends StatelessWidget {
                           ),
                         const Spacer(),
                         Text(
-                          '${set.weightKg.toStringAsFixed(1)} kg × ${set.reps}',
+                          '${formatWeight(set.weightKg, unit)} × ${set.reps}',
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall
@@ -391,6 +394,30 @@ class _TimelineSetTile extends StatelessWidget {
                         ),
                       ],
                     ),
+                    if (set.note != null && set.note!.trim().isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Icon(Icons.sticky_note_2_outlined,
+                              size: 13, color: Colors.grey.shade500),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              set.note!.trim(),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: Colors.grey.shade600,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),

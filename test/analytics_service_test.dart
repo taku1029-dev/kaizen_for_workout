@@ -151,6 +151,62 @@ void main() {
     });
   });
 
+  // MARK: - Frequency / streak
+
+  group('frequency & streak', () {
+    test('weeklyGroupFrequency counts distinct days per group', () {
+      final biceps = makeExercise(id: 1, group: MuscleGroup.biceps);
+      final chest = makeExercise(id: 2, name: 'Bench', group: MuscleGroup.chest);
+      final monday = DateTime(2026, 6, 22); // a Monday
+      final wednesday = DateTime(2026, 6, 24);
+
+      final sessions = [
+        makeSession(date: monday, sets: [
+          makeSet(exercise: biceps, reps: 10, weightKg: 10),
+          makeSet(exercise: chest, reps: 10, weightKg: 40),
+        ]),
+        makeSession(date: wednesday, sets: [
+          makeSet(exercise: biceps, reps: 10, weightKg: 10),
+        ]),
+      ];
+
+      final freq = analytics.weeklyGroupFrequency(sessions, monday);
+      expect(freq[MuscleGroup.biceps], equals(2)); // Mon + Wed
+      expect(freq[MuscleGroup.chest], equals(1)); // Mon only
+    });
+
+    test('currentStreakDays counts consecutive days ending today', () {
+      final ex = makeExercise();
+      final today = DateTime(2026, 6, 25);
+      final sessions = [
+        makeSession(date: today, sets: [makeSet(exercise: ex, reps: 1, weightKg: 1)]),
+        makeSession(
+            date: today.subtract(const Duration(days: 1)),
+            sets: [makeSet(exercise: ex, reps: 1, weightKg: 1)]),
+        makeSession(
+            date: today.subtract(const Duration(days: 2)),
+            sets: [makeSet(exercise: ex, reps: 1, weightKg: 1)]),
+        // gap at day 3
+        makeSession(
+            date: today.subtract(const Duration(days: 4)),
+            sets: [makeSet(exercise: ex, reps: 1, weightKg: 1)]),
+      ];
+
+      expect(analytics.currentStreakDays(sessions, today: today), equals(3));
+    });
+
+    test('currentStreakDays is 0 when no recent workout', () {
+      final ex = makeExercise();
+      final today = DateTime(2026, 6, 25);
+      final sessions = [
+        makeSession(
+            date: today.subtract(const Duration(days: 5)),
+            sets: [makeSet(exercise: ex, reps: 1, weightKg: 1)]),
+      ];
+      expect(analytics.currentStreakDays(sessions, today: today), equals(0));
+    });
+  });
+
   // MARK: - maxWeightHistory
 
   group('maxWeightHistory', () {

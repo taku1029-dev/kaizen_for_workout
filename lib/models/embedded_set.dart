@@ -20,6 +20,9 @@ class EmbeddedSet {
   DateTime? startedAt;
   DateTime? endedAt;
 
+  /// 種目単位のメモ（フォームの気づき等）
+  String? note;
+
   double get volume => weightKg * reps;
 
   @ignore

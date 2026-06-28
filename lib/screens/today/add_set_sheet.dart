@@ -8,6 +8,8 @@ import '../../models/exercise.dart';
 import '../../models/workout_session.dart';
 import '../../providers/app_providers.dart';
 import '../../services/database_service.dart';
+import '../../utils/units.dart';
+import 'exercise_picker_sheet.dart';
 
 enum _TimerState { idle, active, done }
 
@@ -39,6 +41,8 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
   late int _reps;
   late double _weightKg;
   late final TextEditingController _weightController;
+  late final TextEditingController _noteController;
+  late final WeightUnit _unit;
 
   _TimerState _timerState = _TimerState.idle;
   DateTime? _startedAt;
@@ -48,15 +52,19 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
   @override
   void initState() {
     super.initState();
+    _unit = ref.read(weightUnitProvider);
     if (widget.isEditing) {
       _reps = widget.editSet!.reps;
       _weightKg = widget.editSet!.weightKg;
-      _weightController =
-          TextEditingController(text: widget.editSet!.weightKg.toStringAsFixed(1));
+      _weightController = TextEditingController(
+          text: _unit.fromKg(widget.editSet!.weightKg).toStringAsFixed(1));
+      _noteController = TextEditingController(text: widget.editSet!.note ?? '');
     } else {
       _reps = 10;
       _weightKg = 20.0;
-      _weightController = TextEditingController(text: '20.0');
+      _weightController =
+          TextEditingController(text: _unit.fromKg(20.0).toStringAsFixed(1));
+      _noteController = TextEditingController();
       // 休憩・セットタイマーを毎秒再描画する
       _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
         if (mounted) setState(() {});
@@ -68,6 +76,7 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
   void dispose() {
     _ticker?.cancel();
     _weightController.dispose();
+    _noteController.dispose();
     super.dispose();
   }
 
@@ -80,7 +89,7 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
       setState(() {
         _reps = last.reps;
         _weightKg = last.weightKg;
-        _weightController.text = last.weightKg.toStringAsFixed(1);
+        _weightController.text = _unit.fromKg(last.weightKg).toStringAsFixed(1);
       });
     }
   }
@@ -110,7 +119,8 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
           ..reps = _reps
           ..weightKg = _weightKg
           ..startedAt = widget.editSet!.startedAt
-          ..endedAt = widget.editSet!.endedAt;
+          ..endedAt = widget.editSet!.endedAt
+          ..note = _noteText();
         await DatabaseService.updateSet(widget.session, widget.editIndex!, updated);
       } else {
         final exercise = _selectedExercise;
@@ -126,7 +136,8 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
           ..reps = _reps
           ..weightKg = _weightKg
           ..startedAt = _startedAt
-          ..endedAt = _endedAt;
+          ..endedAt = _endedAt
+          ..note = _noteText();
         await DatabaseService.addSet(widget.session, newSet);
       }
     } catch (e) {
@@ -142,6 +153,21 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
       return;
     }
     if (mounted) Navigator.of(context).pop();
+  }
+
+  String? _noteText() {
+    final t = _noteController.text.trim();
+    return t.isEmpty ? null : t;
+  }
+
+  Future<void> _pickExercise() async {
+    final picked = await showModalBottomSheet<Exercise>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => const ExercisePickerSheet(),
+    );
+    if (picked != null) await _onExerciseChanged(picked);
   }
 
   @override
@@ -192,13 +218,13 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: Column(
                 children: [
-                  // 種目: idle のみドロップダウン、active/done は固定表示
+                  // 種目: idle のみ選択可、active/done は固定表示
                   if (widget.isEditing)
                     _ExerciseNameTile(name: widget.editSet!.exerciseName)
                   else if (_timerState == _TimerState.idle)
-                    _ExercisePicker(
+                    _ExerciseSelectorField(
                       selected: _selectedExercise,
-                      onChanged: _onExerciseChanged,
+                      onTap: _pickExercise,
                     )
                   else
                     _ExerciseNameTile(name: _selectedExercise?.name ?? ''),
@@ -208,8 +234,23 @@ class _AddSetSheetState extends ConsumerState<AddSetSheet> {
                   _WeightAndRepsRow(
                     weightController: _weightController,
                     reps: _reps,
-                    onWeightChanged: (v) => setState(() => _weightKg = v),
+                    unit: _unit,
+                    onWeightChanged: (displayValue) =>
+                        setState(() => _weightKg = _unit.toKg(displayValue)),
                     onRepsChanged: (v) => setState(() => _reps = v),
+                  ),
+
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _noteController,
+                    decoration: const InputDecoration(
+                      labelText: 'Note (form cues, condition…)',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    minLines: 1,
+                    maxLines: 3,
+                    textInputAction: TextInputAction.done,
                   ),
 
                   // ── タイマーセクション（追加モードのみ） ──────────────
@@ -376,29 +417,33 @@ class _ExerciseNameTile extends StatelessWidget {
   }
 }
 
-class _ExercisePicker extends ConsumerWidget {
-  const _ExercisePicker({required this.selected, required this.onChanged});
+/// 種目セレクター: タップで検索シートを開く。
+class _ExerciseSelectorField extends StatelessWidget {
+  const _ExerciseSelectorField({required this.selected, required this.onTap});
   final Exercise? selected;
-  final ValueChanged<Exercise?> onChanged;
+  final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final exercisesAsync = ref.watch(exercisesProvider);
-    return exercisesAsync.when(
-      data: (exercises) => DropdownButtonFormField<Exercise>(
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(4),
+      child: InputDecorator(
         decoration: const InputDecoration(
           labelText: 'Exercise',
           border: OutlineInputBorder(),
+          suffixIcon: Icon(Icons.search),
         ),
-        // ignore: deprecated_member_use
-        value: selected,
-        items: exercises
-            .map((e) => DropdownMenuItem(value: e, child: Text(e.name)))
-            .toList(),
-        onChanged: onChanged,
+        child: Text(
+          selected?.name ?? 'Tap to choose',
+          style: selected == null
+              ? Theme.of(context)
+                  .textTheme
+                  .bodyLarge
+                  ?.copyWith(color: Colors.grey)
+              : Theme.of(context).textTheme.bodyLarge,
+        ),
       ),
-      loading: () => const LinearProgressIndicator(),
-      error: (e, _) => Text('Error: $e'),
     );
   }
 }
@@ -407,12 +452,14 @@ class _WeightAndRepsRow extends StatelessWidget {
   const _WeightAndRepsRow({
     required this.weightController,
     required this.reps,
+    required this.unit,
     required this.onWeightChanged,
     required this.onRepsChanged,
   });
 
   final TextEditingController weightController;
   final int reps;
+  final WeightUnit unit;
   final ValueChanged<double> onWeightChanged;
   final ValueChanged<int> onRepsChanged;
 
@@ -424,9 +471,9 @@ class _WeightAndRepsRow extends StatelessWidget {
           child: TextFormField(
             controller: weightController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Weight (kg)',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: 'Weight (${unit.label})',
+              border: const OutlineInputBorder(),
             ),
             onChanged: (v) {
               final parsed = double.tryParse(v);

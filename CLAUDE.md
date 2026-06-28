@@ -34,22 +34,31 @@ kaizen_for_workout/
 │   ├── services/
 │   │   ├── database_service.dart          # Isar 初期化・CRUD・シード
 │   │   └── analytics_service.dart         # ボリューム計算・週次成長率・PR（pure Dart）
+│   ├── models/
+│   │   ├── body_measurement.dart          # @collection: 体重・部位サイズ・写真・体脂肪
+│   │   └── app_settings.dart              # @collection: 単一レコード設定 (kg/lb)
+│   ├── utils/
+│   │   └── units.dart                     # WeightUnit (kg/lb) 変換・整形ヘルパー
 │   ├── providers/
-│   │   └── app_providers.dart             # Riverpod providers (sessions/exercises/analytics)
+│   │   └── app_providers.dart             # Riverpod providers (sessions/exercises/analytics/unit/measurements)
 │   └── screens/
 │       ├── today/
-│       │   ├── today_screen.dart          # 今日のセット記録
-│       │   └── add_set_sheet.dart         # セット追加ボトムシート
+│       │   ├── today_screen.dart          # 今日のセット記録 (タイムライン + 部位別ボリューム)
+│       │   ├── add_set_sheet.dart         # セット追加 (Start/Stop タイマー + メモ)
+│       │   └── exercise_picker_sheet.dart # 種目検索・お気に入り・最近使った
 │       ├── history/
 │       │   ├── history_screen.dart        # 過去ワークアウト一覧
-│       │   └── session_detail_screen.dart # 1日の詳細表示
+│       │   └── session_detail_screen.dart # 1日の詳細表示 (ワークアウトメモ)
 │       ├── analytics/
 │       │   ├── analytics_screen.dart      # 分析タブ (筋肉グループ選択)
 │       │   ├── volume_chart.dart          # 部位別週次ボリューム棒グラフ
 │       │   └── weekly_progress_chart.dart # 最大重量折れ線グラフ + PR表示
+│       ├── progress/
+│       │   ├── progress_screen.dart       # 継続性 (カレンダー/ストリーク) + 頻度 + 体組成
+│       │   └── body_measurement_sheet.dart # 体組成入力 (写真は image_picker)
 │       └── settings/
-│           ├── settings_screen.dart
-│           └── exercise_manager_screen.dart  # 種目の追加・編集・アーカイブ
+│           ├── settings_screen.dart       # 単位切替・デモデータ・種目リセット
+│           └── exercise_manager_screen.dart  # 種目の追加・編集・アーカイブ・お気に入り
 └── test/
     └── analytics_service_test.dart        # AnalyticsService ユニットテスト
 ```
@@ -61,19 +70,35 @@ Isar の embedded objects を使い、セット情報はセッション内に埋
 ```
 WorkoutSession (@collection)
   date: DateTime
+  note: string?         ← ワークアウト単位のメモ
   sets: List<EmbeddedSet>
     exerciseId: int       ← Exercise の Isar ID
     exerciseName: string  ← 非正規化（履歴保持のため）
     muscleGroup: enum
     setNumber: int
     reps: int
-    weightKg: double
+    weightKg: double      ← 内部表現は常に kg
+    startedAt: DateTime?  ← セット開始（Start/Stop タイマー）
+    endedAt: DateTime?    ← セット終了
+    note: string?         ← 種目単位のメモ
 
 Exercise (@collection)
   name: string
-  muscleGroup: enum
+  muscleGroup: enum     ← 13部位 (胸/背/前側後三角筋/二頭/三頭/前腕/四頭/ハム/臀/カーフ/腹)
   isArchived: bool
+  isFavorite: bool
+
+BodyMeasurement (@collection)
+  date: DateTime
+  weightKg / bodyFatPercent / chest/waist/hips/thigh/arm/calf (cm)
+  photoPath: string?    ← 進捗写真 (アプリ documents 内)
+  note: string?
+
+AppSettings (@collection, id=0 固定)
+  useLbs: bool          ← 重量表示単位。内部は kg、表示/入力時のみ変換
 ```
+
+重量は **常に kg で保存**し、表示・入力時のみ `WeightUnit` (utils/units.dart) で kg↔lb 変換する。
 
 ### ボリュームの定義
 

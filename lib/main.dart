@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'screens/today/today_screen.dart';
 import 'screens/history/history_screen.dart';
 import 'screens/analytics/analytics_screen.dart';
+import 'screens/progress/progress_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'services/database_service.dart';
 
@@ -48,6 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
     TodayScreen(),
     HistoryScreen(),
     AnalyticsScreen(),
+    ProgressScreen(),
     SettingsScreen(),
   ];
 
@@ -62,6 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
           NavigationDestination(icon: Icon(Icons.fitness_center), label: 'Today'),
           NavigationDestination(icon: Icon(Icons.calendar_month), label: 'History'),
           NavigationDestination(icon: Icon(Icons.bar_chart), label: 'Analytics'),
+          NavigationDestination(icon: Icon(Icons.insights), label: 'Progress'),
           NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),
         ],
       ),

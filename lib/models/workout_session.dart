@@ -12,5 +12,8 @@ class WorkoutSession {
 
   List<EmbeddedSet> sets = [];
 
+  /// ワークアウト単位のメモ（コンディション等）
+  String? note;
+
   double get totalVolume => sets.fold(0.0, (sum, s) => sum + s.volume);
 }

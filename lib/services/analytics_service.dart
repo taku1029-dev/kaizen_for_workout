@@ -98,6 +98,89 @@ class AnalyticsService {
     return weights.reduce((a, b) => a > b ? a : b);
   }
 
+  // MARK: - Consistency / Frequency
+
+  /// ワークアウトを行った日（時刻を切り捨てた DateTime）の集合。
+  Set<DateTime> workoutDays(List<WorkoutSession> sessions) {
+    return sessions
+        .where((s) => s.sets.isNotEmpty)
+        .map((s) => DateTime(s.date.year, s.date.month, s.date.day))
+        .toSet();
+  }
+
+  /// 現在の連続ワークアウト日数。直近のワークアウトが今日または昨日でなければ 0。
+  int currentStreakDays(List<WorkoutSession> sessions, {DateTime? today}) {
+    final days = workoutDays(sessions);
+    if (days.isEmpty) return 0;
+    final now = today ?? DateTime.now();
+    var cursor = DateTime(now.year, now.month, now.day);
+    // 今日まだ記録がなければ昨日から数え始める
+    if (!days.contains(cursor)) {
+      cursor = cursor.subtract(const Duration(days: 1));
+      if (!days.contains(cursor)) return 0;
+    }
+    var streak = 0;
+    while (days.contains(cursor)) {
+      streak++;
+      cursor = cursor.subtract(const Duration(days: 1));
+    }
+    return streak;
+  }
+
+  /// 連続して週1回以上ワークアウトした週数（今週を含む）。今週が0なら0。
+  int currentWeekStreak(List<WorkoutSession> sessions, {DateTime? referenceDate}) {
+    final today = referenceDate ?? DateTime.now();
+    var streak = 0;
+    var weekCursor = today;
+    while (weeklyWorkoutDays(sessions, weekCursor) > 0) {
+      streak++;
+      weekCursor = weekCursor.subtract(const Duration(days: 7));
+    }
+    return streak;
+  }
+
+  /// 指定週にワークアウトした日数（distinct）。
+  int weeklyWorkoutDays(List<WorkoutSession> sessions, DateTime weekOf) {
+    final inWeek = sessions.where(
+      (s) => s.sets.isNotEmpty && _isSameWeek(s.date, weekOf),
+    );
+    return inWeek
+        .map((s) => DateTime(s.date.year, s.date.month, s.date.day))
+        .toSet()
+        .length;
+  }
+
+  /// 指定週における部位別の刺激日数（distinct days）。
+  Map<MuscleGroup, int> weeklyGroupFrequency(
+    List<WorkoutSession> sessions,
+    DateTime weekOf,
+  ) {
+    final inWeek = sessions.where((s) => _isSameWeek(s.date, weekOf));
+    final daysByGroup = <MuscleGroup, Set<DateTime>>{};
+    for (final session in inWeek) {
+      final day = DateTime(session.date.year, session.date.month, session.date.day);
+      for (final set in session.sets) {
+        daysByGroup.putIfAbsent(set.muscleGroup, () => {}).add(day);
+      }
+    }
+    return daysByGroup.map((k, v) => MapEntry(k, v.length));
+  }
+
+  /// 過去 N 週分の部位別頻度履歴。
+  List<({DateTime weekStart, int days})> weeklyFrequencyHistory(
+    List<WorkoutSession> sessions,
+    MuscleGroup muscleGroup, {
+    int weeks = 8,
+  }) {
+    final today = DateTime.now();
+    return List.generate(weeks, (i) {
+      final weekOf = today.subtract(Duration(days: 7 * (weeks - 1 - i)));
+      final weekStart = _startOfWeek(weekOf);
+      final days = weeklyGroupFrequency(sessions, weekOf)[muscleGroup] ?? 0;
+      return (weekStart: weekStart, days: days);
+    });
+  }
+
   // MARK: - Helpers
 
   bool _isSameWeek(DateTime a, DateTime b) {

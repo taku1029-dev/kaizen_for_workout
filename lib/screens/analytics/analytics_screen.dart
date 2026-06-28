@@ -15,6 +15,7 @@ class AnalyticsScreen extends ConsumerWidget {
     final sessionsAsync = ref.watch(sessionsProvider);
     final exercisesAsync = ref.watch(exercisesProvider);
     final analytics = ref.read(analyticsServiceProvider);
+    final unit = ref.watch(weightUnitProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Analytics')),
@@ -56,7 +57,7 @@ class AnalyticsScreen extends ConsumerWidget {
           sessionsAsync.maybeWhen(
             data: (sessions) {
               final history = analytics.weeklyVolumeHistory(sessions, selected);
-              return VolumeChart(muscleGroup: selected, history: history);
+              return VolumeChart(muscleGroup: selected, history: history, unit: unit);
             },
             orElse: () => const CircularProgressIndicator(),
           ),

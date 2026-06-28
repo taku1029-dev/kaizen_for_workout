@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../models/exercise.dart';
 import '../../models/workout_session.dart';
 import '../../providers/app_providers.dart';
+import '../../utils/units.dart';
 
 class WeeklyProgressChart extends ConsumerStatefulWidget {
   const WeeklyProgressChart({
@@ -41,6 +42,7 @@ class _WeeklyProgressChartState extends ConsumerState<WeeklyProgressChart> {
   @override
   Widget build(BuildContext context) {
     final analytics = ref.read(analyticsServiceProvider);
+    final unit = ref.watch(weightUnitProvider);
     final colorScheme = Theme.of(context).colorScheme;
 
     return Card(
@@ -73,7 +75,7 @@ class _WeeklyProgressChartState extends ConsumerState<WeeklyProgressChart> {
                   }
 
                   final spots = history.asMap().entries.map((e) {
-                    return FlSpot(e.key.toDouble(), e.value.maxWeightKg);
+                    return FlSpot(e.key.toDouble(), unit.fromKg(e.value.maxWeightKg));
                   }).toList();
 
                   return Column(
@@ -115,7 +117,7 @@ class _WeeklyProgressChartState extends ConsumerState<WeeklyProgressChart> {
                                 sideTitles: SideTitles(
                                   showTitles: true,
                                   reservedSize: 36,
-                                  getTitlesWidget: (v, _) => Text('${v.toInt()}kg', style: const TextStyle(fontSize: 9)),
+                                  getTitlesWidget: (v, _) => Text('${v.toInt()}${unit.label}', style: const TextStyle(fontSize: 9)),
                                 ),
                               ),
                               rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -138,7 +140,7 @@ class _WeeklyProgressChartState extends ConsumerState<WeeklyProgressChart> {
                             const Text('Personal Record'),
                             const Spacer(),
                             Text(
-                              '${pr.toStringAsFixed(1)} kg',
+                              formatWeight(pr, unit),
                               style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ],

@@ -14,4 +14,5 @@ class Exercise {
   late MuscleGroup muscleGroup;
 
   bool isArchived = false;
+  bool isFavorite = false;
 }

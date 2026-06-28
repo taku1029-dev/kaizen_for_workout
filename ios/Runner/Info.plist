@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Attach progress photos to your body measurements.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Take progress photos to track your physique over time.</string>
 </dict>
 </plist>

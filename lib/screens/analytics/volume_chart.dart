@@ -3,16 +3,19 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/muscle_group.dart';
+import '../../utils/units.dart';
 
 class VolumeChart extends StatelessWidget {
   const VolumeChart({
     super.key,
     required this.muscleGroup,
     required this.history,
+    required this.unit,
   });
 
   final MuscleGroup muscleGroup;
   final List<({DateTime weekStart, double volume})> history;
+  final WeightUnit unit;
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +30,7 @@ class VolumeChart extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(left: 8),
               child: Text(
-                '${muscleGroup.label} — Weekly Volume (kg)',
+                '${muscleGroup.label} — Weekly Volume (${unit.label})',
                 style: Theme.of(context).textTheme.labelLarge,
               ),
             ),
@@ -44,7 +47,7 @@ class VolumeChart extends StatelessWidget {
                             x: entry.key,
                             barRods: [
                               BarChartRodData(
-                                toY: entry.value.volume,
+                                toY: unit.fromKg(entry.value.volume),
                                 color: colorScheme.primary,
                                 width: 20,
                                 borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),

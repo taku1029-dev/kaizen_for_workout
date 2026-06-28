@@ -47,9 +47,27 @@ class ExerciseManagerScreen extends ConsumerWidget {
                             ? const TextStyle(color: Colors.grey)
                             : null,
                       ),
-                      trailing: exercise.isArchived
-                          ? const Chip(label: Text('Archived'))
-                          : null,
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (exercise.isArchived)
+                            const Chip(label: Text('Archived')),
+                          IconButton(
+                            icon: Icon(
+                              exercise.isFavorite
+                                  ? Icons.star
+                                  : Icons.star_border,
+                              color: exercise.isFavorite
+                                  ? Colors.amber
+                                  : Colors.grey,
+                            ),
+                            onPressed: () {
+                              exercise.isFavorite = !exercise.isFavorite;
+                              DatabaseService.saveExercise(exercise);
+                            },
+                          ),
+                        ],
+                      ),
                       onLongPress: () => _showOptions(context, exercise),
                     ),
                 ],

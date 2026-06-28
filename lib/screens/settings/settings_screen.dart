@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../providers/app_providers.dart';
 import '../../services/database_service.dart';
+import '../../utils/units.dart';
 import 'exercise_manager_screen.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   Future<void> _loadDemoData(BuildContext context) async {
@@ -103,11 +106,35 @@ class SettingsScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unit = ref.watch(weightUnitProvider);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
+          const _SectionHeader('Units'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(
+              children: [
+                const Expanded(child: Text('Weight unit')),
+                SegmentedButton<WeightUnit>(
+                  segments: const [
+                    ButtonSegment(value: WeightUnit.kg, label: Text('kg')),
+                    ButtonSegment(value: WeightUnit.lb, label: Text('lb')),
+                  ],
+                  selected: {unit},
+                  onSelectionChanged: (s) {
+                    final next = s.first;
+                    ref.read(weightUnitProvider.notifier).state = next;
+                    DatabaseService.setUseLbs(next == WeightUnit.lb);
+                  },
+                ),
+              ],
+            ),
+          ),
+          const Divider(),
           const _SectionHeader('Data'),
           ListTile(
             leading: const Icon(Icons.fitness_center),

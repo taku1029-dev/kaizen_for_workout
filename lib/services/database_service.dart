@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../models/app_settings.dart';
+import '../models/body_measurement.dart';
 import '../models/exercise.dart';
 import '../models/embedded_set.dart';
 import '../models/muscle_group.dart';
@@ -16,16 +18,25 @@ class DatabaseService {
 
   static Isar get db => _db;
 
+  /// 起動時に読み込む単位設定のキャッシュ（同期アクセス用）。
+  static bool cachedUseLbs = false;
+
   static Future<void> init() async {
     // Linux デスクトップ開発時はプロジェクトルート、iOS は app support dir を使う
     final dirPath = Platform.isLinux
         ? Directory.current.path
         : (await getApplicationSupportDirectory()).path;
     _db = await Isar.open(
-      [WorkoutSessionSchema, ExerciseSchema],
+      [
+        WorkoutSessionSchema,
+        ExerciseSchema,
+        BodyMeasurementSchema,
+        AppSettingsSchema,
+      ],
       directory: dirPath,
     );
     await _seedIfNeeded();
+    cachedUseLbs = (await getSettings()).useLbs;
   }
 
   static Future<void> _seedIfNeeded() async {
@@ -87,6 +98,13 @@ class DatabaseService {
     final mutable = List<EmbeddedSet>.from(session.sets);
     mutable[index] = updated;
     session.sets = mutable;
+    await _db.writeTxn(() async {
+      await _db.workoutSessions.put(session);
+    });
+  }
+
+  static Future<void> saveSessionNote(WorkoutSession session, String? note) async {
+    session.note = note;
     await _db.writeTxn(() async {
       await _db.workoutSessions.put(session);
     });
@@ -194,8 +212,22 @@ class DatabaseService {
       }
     }
 
+    // 体組成のデモ: 8週かけて体重・体脂肪・ウエストが緩やかに減少
+    final measurements = <BodyMeasurement>[];
+    for (var w = 0; w < weeks; w++) {
+      final weeksAgo = weeks - 1 - w;
+      final date = today.subtract(Duration(days: weeksAgo * 7));
+      measurements.add(BodyMeasurement()
+        ..date = DateTime(date.year, date.month, date.day, 7)
+        ..weightKg = 75.0 - w * 0.3
+        ..bodyFatPercent = 18.0 - w * 0.4
+        ..waistCm = 84.0 - w * 0.4
+        ..armCm = 36.0 + w * 0.1);
+    }
+
     await _db.writeTxn(() async {
       await _db.workoutSessions.putAll(sessions);
+      await _db.bodyMeasurements.putAll(measurements);
     });
     return sessions.length;
   }
@@ -227,6 +259,41 @@ class DatabaseService {
   static Future<void> deleteExercise(Exercise exercise) async {
     await _db.writeTxn(() async {
       await _db.exercises.delete(exercise.id);
+    });
+  }
+
+  // MARK: - App settings
+
+  static Future<AppSettings> getSettings() async {
+    final existing = await _db.appSettings.get(0);
+    if (existing != null) return existing;
+    final fresh = AppSettings()..id = 0;
+    await _db.writeTxn(() async {
+      await _db.appSettings.put(fresh);
+    });
+    return fresh;
+  }
+
+  static Future<void> setUseLbs(bool useLbs) async {
+    final settings = await getSettings();
+    settings.useLbs = useLbs;
+    cachedUseLbs = useLbs;
+    await _db.writeTxn(() async {
+      await _db.appSettings.put(settings);
+    });
+  }
+
+  // MARK: - Body measurements
+
+  static Future<void> saveMeasurement(BodyMeasurement m) async {
+    await _db.writeTxn(() async {
+      await _db.bodyMeasurements.put(m);
+    });
+  }
+
+  static Future<void> deleteMeasurement(int id) async {
+    await _db.writeTxn(() async {
+      await _db.bodyMeasurements.delete(id);
     });
   }
 }
