@@ -195,6 +195,28 @@ void main() {
       expect(analytics.currentStreakDays(sessions, today: today), equals(3));
     });
 
+    test('currentStreakDays bridges a scheduled rest day', () {
+      final ex = makeExercise();
+      final today = DateTime(2026, 6, 25);
+      final restDay = today.subtract(const Duration(days: 1));
+      final sessions = [
+        makeSession(date: today, sets: [makeSet(exercise: ex, reps: 1, weightKg: 1)]),
+        // no workout on restDay
+        makeSession(
+            date: today.subtract(const Duration(days: 2)),
+            sets: [makeSet(exercise: ex, reps: 1, weightKg: 1)]),
+      ];
+
+      // Without rest-day handling the missing day breaks the streak at 1.
+      expect(analytics.currentStreakDays(sessions, today: today), equals(1));
+      // Marking that weekday as rest bridges the gap: today + rest + day-2 = 3.
+      expect(
+        analytics.currentStreakDays(sessions,
+            today: today, restWeekdays: {restDay.weekday}),
+        equals(3),
+      );
+    });
+
     test('currentStreakDays is 0 when no recent workout', () {
       final ex = makeExercise();
       final today = DateTime(2026, 6, 25);

@@ -4,11 +4,13 @@ import 'package:intl/intl.dart';
 
 import '../../models/embedded_set.dart';
 import '../../models/muscle_group.dart';
+import '../../models/routine.dart';
 import '../../models/workout_session.dart';
 import '../../providers/app_providers.dart';
 import '../../services/database_service.dart';
 import '../../utils/units.dart';
 import 'add_set_sheet.dart';
+import 'muscle_map.dart';
 
 class TodayScreen extends ConsumerWidget {
   const TodayScreen({super.key});
@@ -16,10 +18,19 @@ class TodayScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionAsync = ref.watch(todaySessionProvider);
+    final routines = ref.watch(routinesProvider).valueOrNull ?? const <Routine>[];
 
     return Scaffold(
       appBar: AppBar(
         title: Text(DateFormat('EEE, MMM d').format(DateTime.now())),
+        actions: [
+          if (routines.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.playlist_add),
+              tooltip: 'Apply routine',
+              onPressed: () => _openRoutinePicker(context, routines),
+            ),
+        ],
       ),
       body: sessionAsync.when(
         data: (session) => _TimelineBody(session: session),
@@ -33,6 +44,44 @@ class TodayScreen extends ConsumerWidget {
           label: const Text('Add Set'),
         ),
         orElse: () => null,
+      ),
+    );
+  }
+
+  void _openRoutinePicker(BuildContext context, List<Routine> routines) {
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Row(
+                children: [
+                  Icon(Icons.playlist_add_check),
+                  SizedBox(width: 8),
+                  Text('Apply a routine', style: TextStyle(fontSize: 16)),
+                ],
+              ),
+            ),
+            for (final r in routines)
+              ListTile(
+                title: Text(r.name),
+                subtitle: Text('${r.items.length} exercises'),
+                trailing: const Icon(Icons.add),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await DatabaseService.applyRoutineToToday(r);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Added “${r.name}”')),
+                    );
+                  }
+                },
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -52,7 +101,7 @@ class TodayScreen extends ConsumerWidget {
 
 // ─── タイムライン本体 ────────────────────────────────────────────
 
-class _TimelineBody extends StatelessWidget {
+class _TimelineBody extends ConsumerWidget {
   const _TimelineBody({required this.session});
   final WorkoutSession session;
 
@@ -70,19 +119,30 @@ class _TimelineBody extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheduled = ref.watch(todayScheduledRoutineProvider);
+
     if (session.sets.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.fitness_center, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('No sets recorded yet', style: TextStyle(color: Colors.grey)),
-            SizedBox(height: 8),
-            Text('Tap + to log your first set', style: TextStyle(color: Colors.grey)),
-          ],
-        ),
+      return ListView(
+        padding: const EdgeInsets.only(bottom: 96, top: 8, left: 16, right: 16),
+        children: [
+          if (scheduled != null) _ScheduledRoutineBanner(routine: scheduled),
+          const SizedBox(height: 80),
+          const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.fitness_center, size: 64, color: Colors.grey),
+                SizedBox(height: 16),
+                Text('No sets recorded yet',
+                    style: TextStyle(color: Colors.grey)),
+                SizedBox(height: 8),
+                Text('Tap + to log your first set',
+                    style: TextStyle(color: Colors.grey)),
+              ],
+            ),
+          ),
+        ],
       );
     }
 
@@ -90,6 +150,9 @@ class _TimelineBody extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.only(bottom: 96, top: 8, left: 16, right: 16),
       children: [
+        if (scheduled != null) _ScheduledRoutineBanner(routine: scheduled),
+        _MuscleMapCard(session: session),
+        const SizedBox(height: 8),
         _VolumeBreakdownCard(session: session),
         const SizedBox(height: 8),
         for (var i = 0; i < sets.length; i++) ...[
@@ -103,6 +166,93 @@ class _TimelineBody extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+// ─── スケジュールされたルーティンのバナー ───────────────────────
+
+class _ScheduledRoutineBanner extends StatelessWidget {
+  const _ScheduledRoutineBanner({required this.routine});
+  final Routine routine;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      color: scheme.primaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+        child: Row(
+          children: [
+            Icon(Icons.event_available, color: scheme.onPrimaryContainer),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Today’s routine',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: scheme.onPrimaryContainer
+                              .withValues(alpha: 0.7))),
+                  Text(routine.name,
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: scheme.onPrimaryContainer)),
+                ],
+              ),
+            ),
+            FilledButton.icon(
+              onPressed: () async {
+                await DatabaseService.applyRoutineToToday(routine);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Started “${routine.name}”')),
+                  );
+                }
+              },
+              icon: const Icon(Icons.play_arrow, size: 18),
+              label: const Text('Start'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── 筋部位マップカード ─────────────────────────────────────────
+
+class _MuscleMapCard extends StatelessWidget {
+  const _MuscleMapCard({required this.session});
+  final WorkoutSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final byGroup = <MuscleGroup, double>{};
+    for (final s in session.sets) {
+      byGroup[s.muscleGroup] = (byGroup[s.muscleGroup] ?? 0) + s.volume;
+    }
+    final maxVol =
+        byGroup.values.isEmpty ? 1.0 : byGroup.values.reduce((a, b) => a > b ? a : b);
+    final intensities = <MuscleGroup, double>{
+      for (final e in byGroup.entries) e.key: maxVol == 0 ? 0 : e.value / maxVol,
+    };
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Muscles Worked',
+                style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            MuscleMapView(intensities: intensities),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -40,15 +40,20 @@ kaizen_for_workout/
 │   ├── utils/
 │   │   └── units.dart                     # WeightUnit (kg/lb) 変換・整形ヘルパー
 │   ├── providers/
-│   │   └── app_providers.dart             # Riverpod providers (sessions/exercises/analytics/unit/measurements)
+│   │   └── app_providers.dart             # Riverpod providers (sessions/exercises/analytics/unit/measurements/routines/schedule)
 │   └── screens/
 │       ├── today/
-│       │   ├── today_screen.dart          # 今日のセット記録 (タイムライン + 部位別ボリューム)
+│       │   ├── today_screen.dart          # 今日のセット記録 (筋部位マップ + タイムライン + 部位別ボリューム + ルーティン適用)
+│       │   ├── muscle_map.dart            # 前面/背面の人体図を刺激強度で着色する CustomPainter
 │       │   ├── add_set_sheet.dart         # セット追加 (Start/Stop タイマー + メモ)
 │       │   └── exercise_picker_sheet.dart # 種目検索・お気に入り・最近使った
 │       ├── history/
-│       │   ├── history_screen.dart        # 過去ワークアウト一覧
+│       │   ├── history_screen.dart        # 過去ワークアウトの月間カレンダー (日付タップで詳細)
 │       │   └── session_detail_screen.dart # 1日の詳細表示 (ワークアウトメモ)
+│       ├── routines/
+│       │   ├── routine_list_screen.dart   # ルーティン一覧 (作成・編集・削除)
+│       │   ├── routine_editor_screen.dart # ルーティン編集 (種目 + 目標セット/レップ/重量)
+│       │   └── weekly_schedule_screen.dart # 曜日別スケジュール (ルーティン/休養日)
 │       ├── analytics/
 │       │   ├── analytics_screen.dart      # 分析タブ (筋肉グループ選択)
 │       │   ├── volume_chart.dart          # 部位別週次ボリューム棒グラフ
@@ -57,7 +62,7 @@ kaizen_for_workout/
 │       │   ├── progress_screen.dart       # 継続性 (カレンダー/ストリーク) + 頻度 + 体組成
 │       │   └── body_measurement_sheet.dart # 体組成入力 (写真は image_picker)
 │       └── settings/
-│           ├── settings_screen.dart       # 単位切替・デモデータ・種目リセット
+│           ├── settings_screen.dart       # 単位切替・ルーティン/スケジュール導線・デモデータ・種目リセット
 │           └── exercise_manager_screen.dart  # 種目の追加・編集・アーカイブ・お気に入り
 └── test/
     └── analytics_service_test.dart        # AnalyticsService ユニットテスト
@@ -94,9 +99,21 @@ BodyMeasurement (@collection)
   photoPath: string?    ← 進捗写真 (アプリ documents 内)
   note: string?
 
+Routine (@collection)
+  name: string          ← 例: Push Day
+  items: List<RoutineItem>
+    exerciseId / exerciseName / muscleGroup ← 非正規化
+    targetSets / targetReps: int
+    targetWeightKg: double?  ← 目標重量（未設定なら適用時に既定値）
+
 AppSettings (@collection, id=0 固定)
   useLbs: bool          ← 重量表示単位。内部は kg、表示/入力時のみ変換
+  weeklySchedule: List<int>  ← 曜日別 (index 0=月..6=日)。0=未設定 / -1=休養日 / >0=Routine の id
 ```
+
+休養日 (-1) に設定した曜日はワークアウトが無くても **Day Streak を途切れさせない**
+（`AnalyticsService.currentStreakDays` の `restWeekdays` 引数）。
+Today 画面では当日の曜日にスケジュールされた Routine を「Start」ボタンで一括適用できる。
 
 重量は **常に kg で保存**し、表示・入力時のみ `WeightUnit` (utils/units.dart) で kg↔lb 変換する。
 

@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/app_providers.dart';
 import '../../services/database_service.dart';
 import '../../utils/units.dart';
+import '../routines/routine_list_screen.dart';
+import '../routines/weekly_schedule_screen.dart';
 import 'exercise_manager_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -132,6 +134,26 @@ class SettingsScreen extends ConsumerWidget {
                   },
                 ),
               ],
+            ),
+          ),
+          const Divider(),
+          const _SectionHeader('Planning'),
+          ListTile(
+            leading: const Icon(Icons.list_alt),
+            title: const Text('Routines'),
+            subtitle: const Text('Reusable workout templates'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const RoutineListScreen()),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.calendar_view_week),
+            title: const Text('Weekly Schedule'),
+            subtitle: const Text('Assign routines & rest days'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const WeeklyScheduleScreen()),
             ),
           ),
           const Divider(),

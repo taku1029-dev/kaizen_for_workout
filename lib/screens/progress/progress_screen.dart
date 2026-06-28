@@ -34,6 +34,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   Widget build(BuildContext context) {
     final sessionsAsync = ref.watch(sessionsProvider);
     final analytics = ref.read(analyticsServiceProvider);
+    final restWeekdays = ref.watch(restWeekdaysProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Progress')),
@@ -44,6 +45,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
             data: (sessions) => _ConsistencyCard(
               sessions: sessions,
               analytics: analytics,
+              restWeekdays: restWeekdays,
               visibleMonth: _visibleMonth,
               onMonthChanged: (m) => setState(() => _visibleMonth = m),
             ),
@@ -74,18 +76,21 @@ class _ConsistencyCard extends StatelessWidget {
   const _ConsistencyCard({
     required this.sessions,
     required this.analytics,
+    required this.restWeekdays,
     required this.visibleMonth,
     required this.onMonthChanged,
   });
 
   final List<WorkoutSession> sessions;
   final dynamic analytics;
+  final Set<int> restWeekdays;
   final DateTime visibleMonth;
   final ValueChanged<DateTime> onMonthChanged;
 
   @override
   Widget build(BuildContext context) {
-    final streakDays = analytics.currentStreakDays(sessions) as int;
+    final streakDays =
+        analytics.currentStreakDays(sessions, restWeekdays: restWeekdays) as int;
     final weekStreak = analytics.currentWeekStreak(sessions) as int;
     final thisWeek = analytics.weeklyWorkoutDays(sessions, DateTime.now()) as int;
 

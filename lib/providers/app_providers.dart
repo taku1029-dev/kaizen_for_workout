@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:isar/isar.dart';
 
+import '../models/app_settings.dart';
 import '../models/body_measurement.dart';
 import '../models/exercise.dart';
 import '../models/muscle_group.dart';
+import '../models/routine.dart';
 import '../models/workout_session.dart';
 import '../services/analytics_service.dart';
 import '../services/database_service.dart';
@@ -79,6 +81,61 @@ final measurementsProvider = StreamProvider<List<BodyMeasurement>>((ref) {
   return isar.bodyMeasurements
       .watchLazy(fireImmediately: true)
       .asyncMap((_) => isar.bodyMeasurements.where().sortByDateDesc().findAll());
+});
+
+// MARK: - App settings (reactive stream)
+
+final settingsProvider = StreamProvider<AppSettings>((ref) {
+  final isar = ref.watch(isarProvider);
+  return isar.appSettings
+      .watchLazy(fireImmediately: true)
+      .asyncMap((_) => DatabaseService.getSettings());
+});
+
+/// 休養日に設定された曜日（1=月 .. 7=日, DateTime.weekday 準拠）。
+final restWeekdaysProvider = Provider<Set<int>>((ref) {
+  final settingsAsync = ref.watch(settingsProvider);
+  return settingsAsync.maybeWhen(
+    data: (s) {
+      final result = <int>{};
+      for (var i = 0; i < s.weeklySchedule.length && i < 7; i++) {
+        if (s.weeklySchedule[i] == -1) result.add(i + 1); // index0=月→weekday1
+      }
+      return result;
+    },
+    orElse: () => const <int>{},
+  );
+});
+
+// MARK: - Routines (reactive stream)
+
+final routinesProvider = StreamProvider<List<Routine>>((ref) {
+  final isar = ref.watch(isarProvider);
+  return isar.routines
+      .watchLazy(fireImmediately: true)
+      .asyncMap((_) => isar.routines.where().sortByName().findAll());
+});
+
+/// 今日の曜日にスケジュールされた Routine（無ければ null）。
+final todayScheduledRoutineProvider = Provider<Routine?>((ref) {
+  final settingsAsync = ref.watch(settingsProvider);
+  final routinesAsync = ref.watch(routinesProvider);
+  return settingsAsync.maybeWhen(
+    data: (s) => routinesAsync.maybeWhen(
+      data: (routines) {
+        final idx = DateTime.now().weekday - 1; // 0=月 .. 6=日
+        if (idx < 0 || idx >= s.weeklySchedule.length) return null;
+        final value = s.weeklySchedule[idx];
+        if (value <= 0) return null;
+        for (final r in routines) {
+          if (r.id == value) return r;
+        }
+        return null;
+      },
+      orElse: () => null,
+    ),
+    orElse: () => null,
+  );
 });
 
 // MARK: - Recently used exercise ids (most recent first, derived from sessions)

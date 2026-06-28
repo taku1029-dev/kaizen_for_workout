@@ -8,6 +8,8 @@ import '../models/body_measurement.dart';
 import '../models/exercise.dart';
 import '../models/embedded_set.dart';
 import '../models/muscle_group.dart';
+import '../models/routine.dart';
+import '../models/routine_item.dart';
 import '../models/workout_session.dart';
 import '../models/seed_data.dart';
 
@@ -21,6 +23,9 @@ class DatabaseService {
   /// 起動時に読み込む単位設定のキャッシュ（同期アクセス用）。
   static bool cachedUseLbs = false;
 
+  /// 起動時に読み込む週間スケジュールのキャッシュ（index 0=月 .. 6=日）。
+  static List<int> cachedWeeklySchedule = [0, 0, 0, 0, 0, 0, 0];
+
   static Future<void> init() async {
     // Linux デスクトップ開発時はプロジェクトルート、iOS は app support dir を使う
     final dirPath = Platform.isLinux
@@ -32,11 +37,23 @@ class DatabaseService {
         ExerciseSchema,
         BodyMeasurementSchema,
         AppSettingsSchema,
+        RoutineSchema,
       ],
       directory: dirPath,
     );
     await _seedIfNeeded();
-    cachedUseLbs = (await getSettings()).useLbs;
+    final settings = await getSettings();
+    cachedUseLbs = settings.useLbs;
+    cachedWeeklySchedule = _normalizeSchedule(settings.weeklySchedule);
+  }
+
+  /// スケジュールを必ず長さ 7 に揃える（古いレコード対策）。
+  static List<int> _normalizeSchedule(List<int> raw) {
+    final out = List<int>.filled(7, 0);
+    for (var i = 0; i < 7 && i < raw.length; i++) {
+      out[i] = raw[i];
+    }
+    return out;
   }
 
   static Future<void> _seedIfNeeded() async {
@@ -229,6 +246,39 @@ class DatabaseService {
       await _db.workoutSessions.putAll(sessions);
       await _db.bodyMeasurements.putAll(measurements);
     });
+
+    // デモ用ルーティン + 週間スケジュール（routine / rest-day streak のプレビュー用）。
+    // 既にルーティンがある場合は重複を避けてスキップ。
+    if (await _db.routines.count() == 0) {
+      RoutineItem item(Exercise e) => RoutineItem()
+        ..exerciseId = e.id
+        ..exerciseName = e.name
+        ..muscleGroup = e.muscleGroup
+        ..targetSets = 3
+        ..targetReps = 10
+        ..targetWeightKg = _demoBaseWeight[e.muscleGroup];
+      Routine routine(String name, List<MuscleGroup> groups) => Routine()
+        ..name = name
+        ..items = [
+          for (final g in groups)
+            for (final e in byGroup[g] ?? const <Exercise>[]) item(e),
+        ];
+      final pushR = routine('Push Day', push);
+      final pullR = routine('Pull Day', pull);
+      final legsR = routine('Leg Day', legs);
+      await _db.writeTxn(() async {
+        await _db.routines.putAll([pushR, pullR, legsR]);
+      });
+      // Mon=Push, Wed=Pull, Fri=Legs, 他は休養日。
+      final schedule = <int>[pushR.id, -1, pullR.id, -1, legsR.id, -1, -1];
+      final settings = await getSettings();
+      settings.weeklySchedule = schedule;
+      cachedWeeklySchedule = schedule;
+      await _db.writeTxn(() async {
+        await _db.appSettings.put(settings);
+      });
+    }
+
     return sessions.length;
   }
 
@@ -280,6 +330,82 @@ class DatabaseService {
     cachedUseLbs = useLbs;
     await _db.writeTxn(() async {
       await _db.appSettings.put(settings);
+    });
+  }
+
+  /// 指定曜日（index 0=月 .. 6=日）のスケジュールを設定する。
+  /// value: 0 = 未設定 / -1 = 休養日 / >0 = Routine の id。
+  static Future<void> setScheduleForWeekday(int weekdayIndex, int value) async {
+    final settings = await getSettings();
+    final schedule = _normalizeSchedule(settings.weeklySchedule);
+    schedule[weekdayIndex] = value;
+    settings.weeklySchedule = schedule;
+    cachedWeeklySchedule = schedule;
+    await _db.writeTxn(() async {
+      await _db.appSettings.put(settings);
+    });
+  }
+
+  // MARK: - Routines
+
+  static Future<List<Routine>> getRoutines() =>
+      _db.routines.where().findAll();
+
+  static Future<Routine?> getRoutine(int id) => _db.routines.get(id);
+
+  static Future<void> saveRoutine(Routine routine) async {
+    await _db.writeTxn(() async {
+      await _db.routines.put(routine);
+    });
+  }
+
+  static Future<void> deleteRoutine(int id) async {
+    await _db.writeTxn(() async {
+      await _db.routines.delete(id);
+    });
+    // スケジュールから当該ルーティンを外す
+    final schedule = List<int>.from(cachedWeeklySchedule);
+    var changed = false;
+    for (var i = 0; i < schedule.length; i++) {
+      if (schedule[i] == id) {
+        schedule[i] = 0;
+        changed = true;
+      }
+    }
+    if (changed) {
+      final settings = await getSettings();
+      settings.weeklySchedule = schedule;
+      cachedWeeklySchedule = schedule;
+      await _db.writeTxn(() async {
+        await _db.appSettings.put(settings);
+      });
+    }
+  }
+
+  /// ルーティンの種目を今日のセッションにセットとして展開する。
+  /// 目標セット数だけ展開し、setNumber は既存セットの続きから採番する。
+  static Future<void> applyRoutineToToday(Routine routine) async {
+    final session = await getOrCreateTodaySession();
+    final counters = <int, int>{};
+    for (final s in session.sets) {
+      counters[s.exerciseId] = (counters[s.exerciseId] ?? 0) + 1;
+    }
+    final newSets = List<EmbeddedSet>.from(session.sets);
+    for (final item in routine.items) {
+      for (var i = 0; i < item.targetSets; i++) {
+        counters[item.exerciseId] = (counters[item.exerciseId] ?? 0) + 1;
+        newSets.add(EmbeddedSet()
+          ..exerciseId = item.exerciseId
+          ..exerciseName = item.exerciseName
+          ..muscleGroup = item.muscleGroup
+          ..setNumber = counters[item.exerciseId]!
+          ..reps = item.targetReps
+          ..weightKg = item.targetWeightKg ?? 20.0);
+      }
+    }
+    session.sets = newSets;
+    await _db.writeTxn(() async {
+      await _db.workoutSessions.put(session);
     });
   }
 

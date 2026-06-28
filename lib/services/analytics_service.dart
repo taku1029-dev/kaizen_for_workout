@@ -108,23 +108,41 @@ class AnalyticsService {
         .toSet();
   }
 
-  /// 現在の連続ワークアウト日数。直近のワークアウトが今日または昨日でなければ 0。
-  int currentStreakDays(List<WorkoutSession> sessions, {DateTime? today}) {
+  /// 現在の連続ワークアウト日数。
+  /// [restWeekdays] に含まれる曜日（1=月 .. 7=日, DateTime.weekday 準拠）は
+  /// 「休養日」として扱い、ワークアウトが無くても連続を途切れさせず日数に数える。
+  /// ただしストリーク中に 1 度もワークアウトが無ければ 0 を返す。
+  int currentStreakDays(
+    List<WorkoutSession> sessions, {
+    DateTime? today,
+    Set<int> restWeekdays = const {},
+  }) {
     final days = workoutDays(sessions);
     if (days.isEmpty) return 0;
     final now = today ?? DateTime.now();
     var cursor = DateTime(now.year, now.month, now.day);
-    // 今日まだ記録がなければ昨日から数え始める
-    if (!days.contains(cursor)) {
+
+    bool isRest(DateTime d) => restWeekdays.contains(d.weekday);
+
+    // 今日がワークアウトでも休養日でもなければ、昨日から数え始める（今日はまだ未消化）。
+    if (!days.contains(cursor) && !isRest(cursor)) {
       cursor = cursor.subtract(const Duration(days: 1));
-      if (!days.contains(cursor)) return 0;
     }
+
     var streak = 0;
-    while (days.contains(cursor)) {
-      streak++;
+    var workoutCount = 0;
+    while (true) {
+      if (days.contains(cursor)) {
+        streak++;
+        workoutCount++;
+      } else if (isRest(cursor)) {
+        streak++;
+      } else {
+        break;
+      }
       cursor = cursor.subtract(const Duration(days: 1));
     }
-    return streak;
+    return workoutCount == 0 ? 0 : streak;
   }
 
   /// 連続して週1回以上ワークアウトした週数（今週を含む）。今週が0なら0。
